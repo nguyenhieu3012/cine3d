@@ -1,0 +1,45 @@
+// Look & QA test for Tầng 1 upgrades (24/11/2026):
+//   core/overlay_v2.js (chatStrip, callCard outgoing/busy, voiceNote, receipt, stamp, homThuSlip, questBadge)
+//   + packs/trada/stall.js opt-in props (menuBrand, mailbox).
+export default {
+  id: 'trada_v2_widgets',
+  pack: 'trada',
+  dur: 15.0,
+  fps: 30,
+  look2: true,
+  act2: true,
+  setOpts: { plus: true, menuBrand: true, mailbox: true },
+  captions: { y: 1385 },
+  shots: [
+    { t0: 0.0, t1: 0.9, cam: 'cu_teo', move: 'push' },
+    { t0: 0.9, t1: 2.0, cam: 'ms_bip', move: 'push' },
+    { t0: 2.0, t1: 4.5, cam: 'two', move: 'pull' },
+    { t0: 4.5, t1: 6.8, cam: 'ms_teo', move: 'push' },
+    { t0: 6.8, t1: 9.2, cam: 'ms_bip', move: 'push' },
+    { t0: 9.2, t1: 11.7, cam: 'two', move: 'push' },
+    { t0: 11.7, t1: 15.0, cam: 'wide', hold: true, move: 'pull' },
+  ],
+  lines: [],
+  acts: [
+    { t: -1, who: 'teo', pose: 'phone', emo: 'shock', d: 0.01 },
+    { t: -1, who: 'bip', pose: 'table', emo: 'judge', d: 0.01 },
+    { t: 2.0, who: 'teo', pose: 'chin', emo: 'worry', d: 0.25 },
+    { t: 4.5, who: 'teo', pose: 'phone', emo: 'worry', d: 0.25 },
+    { t: 6.8, who: 'bip', pose: 'point', emo: 'smug', d: 0.25 },
+    { t: 9.2, who: 'teo', pose: 'facepalm', emo: 'shock', d: 0.2 },
+    { t: 11.7, who: 'teo', pose: 'raise', emo: 'happy', d: 0.25 },
+    { t: 11.7, who: 'bip', pose: 'table', emo: 'happy', d: 0.25 },
+  ],
+  overlays: [
+    { kind: 'hook', t0: 0.0, t1: 2.15, text: 'HACK NICK, VAY 5 TRIỆU', y: 345, color: '#ffc531' },
+    { kind: 'chatStrip', t0: 2.0, t1: 4.4, sender: 'Mẹ', sub: 'Trực tuyến', avatar: 'mum', accent: '#2f7cf6', y: 345,
+      msgs: [{ t: 2.05, from: 'them', text: 'Con đóng tiền gì?' }] },
+    { kind: 'callCard', t0: 4.6, t1: 6.7, mode: 'outgoing', name: 'Mẹ', avatar: 'mum', busyAt: 5.6, busyText: 'Máy bận!', y: 320 },
+    { kind: 'voiceNote', t0: 6.9, t1: 9.1, sender: 'Mẹ · Tin thoại', avatar: 'mum', who: 'me', durLabel: '0:04', text: 'À. Con tôi đây rồi.', y: 345 },
+    { kind: 'receipt', t0: 9.3, t1: 11.6, title: 'CHUYỂN KHOẢN', amount: '5.000.000đ', status: 'fail', y: 370,
+      rows: [['Người nhận', 'STK Lạ'], ['Trạng thái', 'Chặn kịp lúc']] },
+    { kind: 'stamp', t0: 10.1, t1: 11.6, text: 'LỪA ĐẢO!', color: '#e53935', x: 645, y: 530, size: 52, rot: -0.14 },
+    { kind: 'questBadge', t0: 11.8, t1: 14.9, label: 'KHÁCH QUÁN → MỐC 1', pct: [78, 84], goalText: 'Đủ 100% mở tập đặc biệt', y: 278 },
+    { kind: 'homThuSlip', t0: 11.9, t1: 14.9, header: 'HÒM THƯ QUÁN TRÀ', text: 'Bạn hay nhắn mẹ câu gì?', sub: 'Kể dưới bình luận, Bíp dựng phim', y: 474, size: 40 },
+  ],
+};

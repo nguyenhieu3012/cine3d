@@ -1,0 +1,17 @@
+{
+ "title": "Messi's Assists vs Ronaldo's Goals",
+ "claim": "Assists are for waiters: goals win games, so Ronaldo's goals beat Messi's record assists.",
+ "side": "leo",
+ "comment_ron": "Nobody remembers who passed. Ronaldo has the most international goals ever.",
+ "comment_leo": "Most assists in history AND two goals in a World Cup final. Ronaldo never passed in his life.",
+ "facts": [
+  "Messi holds the record for most assists in history (official matches)",
+  "Messi has over 300 career assists",
+  "Ronaldo has more career goals than Messi",
+  "Ronaldo holds the men's record for international goals",
+  "Messi scored twice in the 2022 World Cup final, one a penalty",
+  "Ronaldo scored in the 2008, 2014 (penalty) and 2017 Champions League finals"
+ ],
+ "kind": "fullbeef",
+ "script_doc": "~/goat-beef-test/v2/script/ep11_cine3d_assists.md"
+}

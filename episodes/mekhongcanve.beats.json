@@ -1,0 +1,573 @@
+{
+ "id": "mekhongcanve",
+ "pre": 0.12,
+ "tail": 0.05,
+ "seed": 62,
+ "meta": {
+  "person": "Mẹ ở quê (chỉ hiện qua tin nhắn và ảnh mẹ gửi); người xem là đứa con đi làm xa, lâu chưa về",
+  "sum": "không có khoản tiền; cây bưởi (ra hoa, chín, rụng) và câu 'Dạ, tuần sau con về ạ.' ba lần, con cá còn bơi trong chậu nhôm, quả bưởi cuối bọc túi mẹ để phần",
+  "opener": "Tèo giơ máy khoe tin mẹ 'Bận thì thôi, không cần về đâu con.' (thẻ chat nửa trên); chữ 'MẸ NÓI KHỎI VỀ. MẸ NGHĨ GÌ?'",
+  "sincere_beat": "l15 Tèo, rất khẽ, sau 2,2 s im: '…Tao về.'",
+  "withheld_opener": "Tèo tưởng 'không cần về' là mẹ thoải mái; Bíp dịch tiếng mẹ: mẹ nhớ",
+  "thread": ""
+ },
+ "sfx": [
+  {
+   "name": "pop",
+   "ref": "m1",
+   "off": 0.1,
+   "gain": -10
+  },
+  {
+   "name": "tick",
+   "ref": "p2",
+   "off": 0.1,
+   "dur": 0.5,
+   "gain": -14
+  },
+  {
+   "name": "ting",
+   "ref": "p2",
+   "off": 0.55,
+   "gain": -8
+  },
+  {
+   "name": "whoosh",
+   "ref": "p4",
+   "off": 0.05,
+   "dur": 0.4,
+   "gain": -10
+  },
+  {
+   "name": "pop",
+   "ref": "p4",
+   "off": 0.25,
+   "gain": -8
+  },
+  {
+   "name": "pop",
+   "ref": "p4",
+   "off": 0.9,
+   "gain": -8
+  },
+  {
+   "name": "whoosh",
+   "ref": "p4",
+   "off": 2.95,
+   "dur": 0.4,
+   "gain": -12
+  },
+  {
+   "name": "pop",
+   "ref": "p5",
+   "off": 0.2,
+   "gain": -8
+  },
+  {
+   "name": "pop",
+   "ref": "p5",
+   "off": 0.85,
+   "gain": -8
+  },
+  {
+   "name": "whoosh",
+   "ref": "p6",
+   "off": 0.05,
+   "dur": 0.4,
+   "gain": -10
+  },
+  {
+   "name": "pop",
+   "ref": "p6",
+   "off": 0.25,
+   "gain": -8
+  },
+  {
+   "name": "pop",
+   "ref": "p6",
+   "off": 0.8,
+   "gain": -8
+  },
+  {
+   "name": "whoosh",
+   "ref": "p6",
+   "off": 3.5,
+   "dur": 0.6,
+   "gain": -12
+  },
+  {
+   "name": "whoosh",
+   "ref": "p7",
+   "off": 1.0,
+   "dur": 0.5,
+   "gain": -12
+  },
+  {
+   "name": "tick",
+   "ref": "p7",
+   "off": 0.1,
+   "dur": 1.4,
+   "gain": -13
+  },
+  {
+   "name": "pop",
+   "ref": "m7",
+   "off": -0.05,
+   "gain": -8
+  },
+  {
+   "name": "tick",
+   "ref": "p8",
+   "off": 0.1,
+   "dur": 1.1,
+   "gain": -13
+  },
+  {
+   "name": "ting",
+   "ref": "p8",
+   "off": 1.35,
+   "gain": -6
+  },
+  {
+   "name": "whoosh",
+   "ref": "p8",
+   "off": 1.35,
+   "dur": 0.4,
+   "gain": -14
+  },
+  {
+   "name": "whoosh",
+   "ref": "p9",
+   "off": 0.7,
+   "dur": 0.4,
+   "gain": -14
+  },
+  {
+   "name": "ting",
+   "ref": "p9",
+   "off": 0.78,
+   "gain": -6
+  },
+  {
+   "name": "whoosh",
+   "ref": "p10",
+   "off": 0.0,
+   "dur": 0.4,
+   "gain": -14
+  },
+  {
+   "name": "pop",
+   "ref": "p10",
+   "off": 0.06,
+   "gain": -8
+  },
+  {
+   "name": "tick",
+   "ref": "p10",
+   "off": 0.2,
+   "dur": 2.0,
+   "gain": -16
+  },
+  {
+   "name": "tick",
+   "ref": "p11",
+   "off": 0.1,
+   "dur": 1.2,
+   "gain": -12
+  },
+  {
+   "name": "ting",
+   "ref": "p11",
+   "off": 1.45,
+   "gain": -8
+  },
+  {
+   "name": "ting",
+   "ref": "p12",
+   "off": 0.5,
+   "gain": -6
+  },
+  {
+   "name": "tick",
+   "ref": "p13",
+   "off": 0.1,
+   "dur": 1.4,
+   "gain": -12
+  },
+  {
+   "name": "ting",
+   "ref": "p13",
+   "off": 1.6,
+   "gain": -8
+  },
+  {
+   "name": "tick",
+   "ref": "p14",
+   "off": 0.05,
+   "dur": 4.5,
+   "gain": -17
+  },
+  {
+   "name": "ting",
+   "ref": "p14",
+   "off": 4.75,
+   "gain": -7
+  },
+  {
+   "name": "whoosh",
+   "ref": "p15",
+   "off": 0.2,
+   "dur": 0.5,
+   "gain": -14
+  },
+  {
+   "name": "pop",
+   "ref": "p15",
+   "off": 0.3,
+   "gain": -12
+  },
+  {
+   "name": "ting",
+   "ref": "p15",
+   "off": 0.45,
+   "gain": -11
+  },
+  {
+   "name": "whoosh",
+   "ref": "p15",
+   "off": 2.8,
+   "dur": 0.6,
+   "gain": -14
+  },
+  {
+   "name": "pop",
+   "ref": "p16",
+   "off": 0.0,
+   "gain": -10
+  },
+  {
+   "name": "pop",
+   "ref": "p16",
+   "off": 0.5,
+   "gain": -10
+  },
+  {
+   "name": "ting",
+   "ref": "p16",
+   "off": 0.55,
+   "gain": -9
+  },
+  {
+   "name": "tick",
+   "ref": "p17",
+   "off": 0.05,
+   "dur": 1.4,
+   "gain": -19
+  }
+ ],
+ "music": {
+  "mood": "home",
+  "seed": 62,
+  "fade": 1.4,
+  "segs": [
+   {
+    "seg": "HOOK",
+    "ref": 0
+   },
+   {
+    "seg": "DICH",
+    "ref": "l3",
+    "off": -0.1
+   },
+   {
+    "seg": "CAI",
+    "ref": "p4",
+    "off": 0
+   },
+   {
+    "seg": "RUNG",
+    "ref": "p6",
+    "off": 0
+   },
+   {
+    "seg": "GO",
+    "ref": "p7",
+    "off": 0
+   },
+   {
+    "seg": "IM",
+    "ref": "p10",
+    "off": 0
+   },
+   {
+    "seg": "VE",
+    "ref": "l15",
+    "off": 0.3
+   },
+   {
+    "seg": "END",
+    "ref": "p15",
+    "off": 0.0
+   }
+  ]
+ },
+ "duck": [
+  {
+   "from": "p10",
+   "to": "l15",
+   "k": 0.2
+  },
+  {
+   "from": "l16",
+   "off0": 1.2,
+   "to": "p15",
+   "k": 0.05
+  },
+  {
+   "from": "p15",
+   "off0": 0.9,
+   "to": "p16",
+   "k": 0.6
+  }
+ ],
+ "beats": [
+  {
+   "id": "m1",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Mẹ tao bảo không cần về. Tâm lý ghê!",
+   "gap": 0,
+   "mood": "smug",
+   "tension": 5,
+   "land": "laugh",
+   "say": "[smug] Mẹ tao bảo không cần về. Tâm lý ghê!"
+  },
+  {
+   "id": "l2",
+   "who": "bip",
+   "spk": "BÍP",
+   "text": "Để tao dịch.",
+   "gap": 0.35,
+   "mood": "flat",
+   "tension": 5
+  },
+  {
+   "id": "p2",
+   "pause": 0.6,
+   "tension": 6
+  },
+  {
+   "id": "l3",
+   "who": "bip",
+   "spk": "BÍP",
+   "text": "Mẹ nhớ.",
+   "gap": 0.1,
+   "mood": "flat",
+   "tension": 6,
+   "land": "turn"
+  },
+  {
+   "id": "m3",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Nhớ gì! Tao mới hứa về hồi bưởi ra hoa mà!",
+   "gap": 0.3,
+   "mood": "anger",
+   "tension": 5,
+   "land": "gag",
+   "say": "[indignant] Nhớ gì! Tao mới hứa về hồi bưởi ra hoa mà!"
+  },
+  {
+   "id": "p4",
+   "pause": 3.0,
+   "tension": 6,
+   "land": "reveal",
+   "note": "cuộn lên: ảnh bưởi ra hoa + 'Bưởi ra hoa rồi con.' rồi Tèo 'Dạ, tuần sau con về ạ.'; đọc xong mới cuộn"
+  },
+  {
+   "id": "p5",
+   "pause": 0.9,
+   "tension": 5,
+   "note": "ảnh bưởi chín + 'Bưởi chín rồi con.' rồi Tèo 'Dạ, tuần sau con về ạ.'"
+  },
+  {
+   "id": "l5",
+   "who": "bip",
+   "spk": "BÍP",
+   "text": "Bưởi chín rồi.",
+   "gap": 0.1,
+   "mood": "flat",
+   "tension": 6,
+   "land": "laugh"
+  },
+  {
+   "id": "p5b",
+   "pause": 0.5,
+   "tension": 5,
+   "note": "BẢN 3 gate: hàng 5 ('Thì… tao bận thật mà.') bị cắt vì tổng > 60 s; giữ 0,5 s cho chin đủ thời gian đọc"
+  },
+  {
+   "id": "p6",
+   "pause": 3.55,
+   "tension": 6,
+   "note": "cuộn: ảnh bưởi rụng + 'Rụng gần hết rồi con.' rồi Tèo 'Dạ, tuần sau con về ạ.' lần ba; đọc xong, thu nhỏ cả cuộn cho thấy ba câu của Tèo thẳng hàng"
+  },
+  {
+   "id": "b6",
+   "who": "bip",
+   "spk": "BÍP",
+   "text": "Ba cái tuần sau.",
+   "gap": 0.3,
+   "mood": "flat",
+   "tension": 7,
+   "land": "laugh"
+  },
+  {
+   "id": "p7",
+   "pause": 1.8,
+   "tension": 4,
+   "note": "thu nhỏ giữ ~2,7 s rồi phóng về; Tèo cầm máy gõ (cận tay)"
+  },
+  {
+   "id": "m7",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Mẹ khoẻ không ạ?",
+   "gap": 0.1,
+   "mood": "smug",
+   "tension": 5,
+   "say": "[brightly, forced] Mẹ khoẻ không ạ?"
+  },
+  {
+   "id": "p8",
+   "pause": 1.5,
+   "tension": 4,
+   "note": "mẹ gõ (tick), tin A hiện cuối khoảng im, kèm ting"
+  },
+  {
+   "id": "m8",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Đấy! Mẹ mua cá ngon!",
+   "gap": 0.25,
+   "mood": "joy",
+   "tension": 5,
+   "say": "[delighted] Đấy! Mẹ mua cá ngon!",
+   "land": "gag"
+  },
+  {
+   "id": "p9",
+   "pause": 1.3,
+   "tension": 5,
+   "note": "tin B hiện sau 0,75 s"
+  },
+  {
+   "id": "m9",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Mà thôi… mẹ kho mặn, ăn dần.",
+   "gap": 0.15,
+   "mood": "sad",
+   "tension": 6,
+   "land": "turn",
+   "say": "[fading] Mà thôi… mẹ kho mặn, ăn dần."
+  },
+  {
+   "id": "p10",
+   "pause": 2.2,
+   "tension": 8,
+   "land": "reveal",
+   "note": "dải DỊCH TIẾNG MẸ mọc ra dưới tin B, TRỐNG, con trỏ nháy; im 2,2 s; nhạc gần tắt, chỉ tích tắc"
+  },
+  {
+   "id": "l15",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "…Tao về.",
+   "gap": 0.1,
+   "mood": "sad",
+   "tension": 4,
+   "land": "reveal",
+   "say": "[very softly, sincere] …Tao về."
+  },
+  {
+   "id": "p11",
+   "pause": 1.6,
+   "tension": 5,
+   "note": "Tèo gõ; tin của Tèo hiện cuối khoảng im"
+  },
+  {
+   "id": "l16",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Mẹ đừng kho ạ. Tối nay con về.",
+   "gap": 0.35,
+   "mood": "sad",
+   "tension": 6,
+   "land": "turn",
+   "say": "[soft, sincere] Mẹ đừng kho ạ. Tối nay con về."
+  },
+  {
+   "id": "p12",
+   "pause": 4.0,
+   "tension": 8,
+   "land": "reveal",
+   "note": "tin mẹ 'Ừ. Tuần sau cũng được con ạ.' hiện sau 0,5 s, không ai đọc to, giữ >= 3,4 s; Bíp nhìn Tèo; nhạc gần tắt"
+  },
+  {
+   "id": "p13",
+   "pause": 1.9,
+   "tension": 6,
+   "note": "Tèo gõ tiếp; tin của Tèo hiện cuối"
+  },
+  {
+   "id": "m13",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Tối nay ạ. Con ra bến xe luôn đây.",
+   "gap": 0.35,
+   "mood": "sad",
+   "tension": 5,
+   "say": "[firm, choked] Tối nay ạ. Con ra bến xe luôn đây.",
+   "land": "turn"
+  },
+  {
+   "id": "p14",
+   "pause": 4.75,
+   "tension": 6,
+   "note": "mẹ gõ rồi xoá: dấu ... hiện 1,2 / tắt 0,8 / hiện 1,2 / tắt 0,6 / hiện 0,8; rồi tin 'Thế thì mẹ chưa kho.'; không nhạc, chỉ tích tắc; ngay sau tin: ảnh cá còn bơi",
+   "land": "reveal"
+  },
+  {
+   "id": "p15",
+   "pause": 2.95,
+   "tension": 6,
+   "land": "reveal",
+   "note": "ảnh cá trong chậu nhôm đứng yên ~2,6 s, MỘT nốt đàn mềm trên ảnh; nhạc ấm (mood home) mọc lên từ đây tới hết; không riser trước nhát này"
+  },
+  {
+   "id": "p16",
+   "pause": 1.0,
+   "tension": 5,
+   "note": "ảnh cây bưởi trơ cành còn MỘT quả bọc túi buộc dây hiện, 0,5 s sau là tin 'Bưởi còn một quả. Mẹ để phần con.'; giọng vào 0,5 s sau tin"
+  },
+  {
+   "id": "m15",
+   "who": "teo",
+   "spk": "TÈO",
+   "text": "Mẹ để phần con.",
+   "gap": 0.0,
+   "mood": "sad",
+   "tension": 6,
+   "land": "reveal",
+   "say": "[whispering, choked] Mẹ để phần con."
+  },
+  {
+   "id": "p17",
+   "pause": 1.95,
+   "tension": 2,
+   "silence": true,
+   "note": "đuôi 2 s im: Tèo cúi đầu quệt mắt một lần; Bíp đẩy cốc trà về phía Tèo; máy lùi chậm; chữ nhỏ MẸ BẠN HAY NÓI CÂU GÌ?; chỉ nhạc ấm nhỏ dần"
+  }
+ ]
+}

@@ -1,0 +1,344 @@
+{
+ "version": 1,
+ "sfx": {
+  "pop": {
+   "files": [
+    "sfx/pop_1.wav",
+    "sfx/pop_2.wav",
+    "sfx/pop_3.wav",
+    "sfx/pop_4.wav",
+    "sfx/pop_5.wav"
+   ],
+   "gain_db": -1.5,
+   "loop": false,
+   "desc": "Pop bong bóng thoại / hiệu ứng bật nảy"
+  },
+  "msg_in": {
+   "files": [
+    "sfx/msg_in_1.wav",
+    "sfx/msg_in_2.wav",
+    "sfx/msg_in_3.wav"
+   ],
+   "gain_db": -2.0,
+   "loop": false,
+   "desc": "Tin nhắn đến (notification mượt)"
+  },
+  "msg_out": {
+   "files": [
+    "sfx/msg_out_1.wav",
+    "sfx/msg_out_2.wav"
+   ],
+   "gain_db": -2.5,
+   "loop": false,
+   "desc": "Gửi tin nhắn đi / thả thẻ"
+  },
+  "thought_pop": {
+   "files": [
+    "sfx/thought_pop_1.wav",
+    "sfx/thought_pop_2.wav"
+   ],
+   "gain_db": -2.5,
+   "loop": false,
+   "desc": "Bật bóng suy nghĩ (question popup)"
+  },
+  "voice_note": {
+   "files": [
+    "sfx/voice_note_1.wav",
+    "sfx/voice_note_2.wav"
+   ],
+   "gain_db": -2.5,
+   "loop": false,
+   "desc": "Bấm phát tin thoại"
+  },
+  "ting": {
+   "files": [
+    "sfx/ting_1.wav"
+   ],
+   "gain_db": -2.0,
+   "loop": false,
+   "desc": "Chuông ting cơ học thật"
+  },
+  "tingting": {
+   "files": [
+    "sfx/tingting_1.wav"
+   ],
+   "gain_db": -2.0,
+   "loop": false,
+   "desc": "Ting-ting tiền vào / loa QR"
+  },
+  "kaching": {
+   "files": [
+    "sfx/kaching_1.wav"
+   ],
+   "gain_db": -3.0,
+   "loop": false,
+   "desc": "Máy tính tiền kaching thật"
+  },
+  "ding_idea": {
+   "files": [
+    "sfx/ding_idea_1.wav"
+   ],
+   "gain_db": -2.0,
+   "loop": false,
+   "desc": "Ting nảy ý tưởng"
+  },
+  "chime": {
+   "files": [
+    "sfx/chime_1.wav"
+   ],
+   "gain_db": -3.0,
+   "loop": false,
+   "desc": "Chuông kết sáng nhẹ"
+  },
+  "ring": {
+   "files": [
+    "sfx/ring_1.wav"
+   ],
+   "gain_db": -5.0,
+   "loop": true,
+   "desc": "Chuông chờ cuộc gọi điện thoại thật"
+  },
+  "dial_busy": {
+   "files": [
+    "sfx/dial_busy_1.wav"
+   ],
+   "gain_db": -4.0,
+   "loop": true,
+   "desc": "Tín hiệu máy bận thật"
+  },
+  "click": {
+   "files": [
+    "sfx/click_1.wav",
+    "sfx/click_2.wav",
+    "sfx/click_3.wav"
+   ],
+   "gain_db": -2.5,
+   "loop": false,
+   "desc": "Bấm nút / chọn điện thoại"
+  },
+  "lock": {
+   "files": [
+    "sfx/lock_1.wav",
+    "sfx/lock_2.wav"
+   ],
+   "gain_db": -2.0,
+   "loop": false,
+   "desc": "Chốt khóa / đóng khung"
+  },
+  "alarm_low": {
+   "files": [
+    "sfx/alarm_low_1.wav",
+    "sfx/alarm_low_2.wav"
+   ],
+   "gain_db": -4.0,
+   "loop": false,
+   "desc": "Báo lỗi / cảnh báo nhẹ"
+  },
+  "glitch": {
+   "files": [
+    "sfx/glitch_1.wav"
+   ],
+   "gain_db": -4.0,
+   "loop": false,
+   "desc": "Nhiễu kỹ thuật / giật khung"
+  },
+  "whoosh": {
+   "files": [
+    "sfx/whoosh_1.wav",
+    "sfx/whoosh_2.wav"
+   ],
+   "gain_db": -2.5,
+   "loop": false,
+   "desc": "Vút chuyển cảnh / trượt thẻ"
+  },
+  "slide": {
+   "files": [
+    "sfx/slide_1.wav"
+   ],
+   "gain_db": -3.0,
+   "loop": false,
+   "desc": "Trượt nhẹ trên bàn / UI"
+  },
+  "thud": {
+   "files": [
+    "sfx/thud_1.wav",
+    "sfx/thud_2.wav"
+   ],
+   "gain_db": -1.5,
+   "loop": false,
+   "desc": "Đặt mạnh xuống / va chạm trầm"
+  },
+  "stamp": {
+   "files": [
+    "sfx/stamp_1.wav"
+   ],
+   "gain_db": -1.0,
+   "loop": false,
+   "desc": "Đóng dấu cộp"
+  },
+  "boom": {
+   "files": [
+    "sfx/boom_1.wav"
+   ],
+   "gain_db": -1.0,
+   "loop": false,
+   "desc": "Cú dập trầm (twist / reveal lớn)"
+  },
+  "paper_slip": {
+   "files": [
+    "sfx/paper_slip_1.wav",
+    "sfx/paper_slip_2.wav"
+   ],
+   "gain_db": -2.0,
+   "loop": false,
+   "desc": "Tiếng giấy / lật phiếu Hòm Thư thật"
+  },
+  "clink": {
+   "files": [
+    "sfx/clink_1.wav",
+    "sfx/clink_2.wav"
+   ],
+   "gain_db": -3.5,
+   "loop": false,
+   "desc": "Keng ly thủy tinh thật"
+  },
+  "tea_pour": {
+   "files": [
+    "sfx/tea_pour_1.wav"
+   ],
+   "gain_db": -3.0,
+   "loop": false,
+   "desc": "Rót trà đá thật"
+  },
+  "tick": {
+   "files": [
+    "sfx/tick_1.wav"
+   ],
+   "gain_db": -4.5,
+   "loop": true,
+   "desc": "Đồng hồ tích tắc thật"
+  },
+  "cheer": {
+   "files": [
+    "sfx/cheer_1.wav"
+   ],
+   "gain_db": -4.0,
+   "loop": false,
+   "desc": "Tiếng vỗ tay / reo hò thật"
+  },
+  "shutter": {
+   "files": [
+    "sfx/shutter_1.wav"
+   ],
+   "gain_db": -2.5,
+   "loop": false,
+   "desc": "Chụp ảnh / tạch cơ học"
+  }
+ },
+ "aliases": {
+  "popup": "thought_pop",
+  "notify": "msg_in",
+  "message": "msg_in",
+  "paper": "paper_slip",
+  "busy": "dial_busy"
+ },
+ "ambience": {
+  "street": {
+   "files": [
+    "ambience/street_night.wav"
+   ],
+   "gain_db": 0.0,
+   "loop": true,
+   "desc": "Không khí đường phố đêm có tiếng dế & nền phố ấm"
+  },
+  "murmur": {
+   "files": [
+    "ambience/pub_murmur.wav"
+   ],
+   "gain_db": 0.0,
+   "loop": true,
+   "desc": "Không khí quán nước / pub có người trò chuyện khẽ"
+  }
+ },
+ "music": {
+  "comedy_playful": {
+   "file": "music/comedy_playful.mp3",
+   "gain_db": 0.0,
+   "vibe": "Nhịp nhanh vui nhộn, tung hứng hài ngắn",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "comedy_quirky": {
+   "file": "music/comedy_quirky.mp3",
+   "gain_db": 0.0,
+   "vibe": "Lém lỉnh, kỳ quặc nhẹ kiểu sitcom quán trà",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "comedy_capers": {
+   "file": "music/comedy_capers.mp3",
+   "gain_db": 0.0,
+   "vibe": "Lén lút, rình rập hài (cà khịa, giả vờ)",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "tension_comic": {
+   "file": "music/tension_comic.mp3",
+   "gain_db": 0.0,
+   "vibe": "Căng thẳng kiểu điều tra/lừa đảo nhưng vẫn vui",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "tension_dark": {
+   "file": "music/tension_dark.mp3",
+   "gain_db": 0.0,
+   "vibe": "Kịch tính gấp gáp, dồn dập (cú sốc / rượt đuổi)",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "warm_family": {
+   "file": "music/warm_family.mp3",
+   "gain_db": 0.0,
+   "vibe": "Ấm áp, cảm động (kết gia đình / Mẹ / tâm sự)",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "warm_slice": {
+   "file": "music/warm_slice.mp3",
+   "gain_db": 0.0,
+   "vibe": "Đời thường dịu nhẹ, hoài niệm đầu-cuối phim",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "pub_banter": {
+   "file": "music/pub_banter.mp3",
+   "gain_db": 0.0,
+   "vibe": "Sôi động, khí thế quán pub (GOAT Beef / tranh luận)",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  },
+  "lofi_night": {
+   "file": "music/lofi_night.mp3",
+   "gain_db": 0.0,
+   "vibe": "Chill buổi tối thư giãn, lý tưởng cho 16:9 dài",
+   "author": "FreePD / Public Domain",
+   "source": "FreePD Archive (CC0)",
+   "license": "CC0 1.0"
+  }
+ },
+ "mood_map": {
+  "home": "warm_family",
+  "shop": "comedy_playful",
+  "coin": "comedy_quirky",
+  "ai": "comedy_acoustic",
+  "ghost": "tension_dark"
+ }
+}

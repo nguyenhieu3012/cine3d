@@ -1,0 +1,555 @@
+{
+ "id": "gb11",
+ "title": "Messi's Assists vs Ronaldo's Goals",
+ "script": "~/goat-beef-test/v2/script/ep11_cine3d_assists.md",
+ "voices": {
+  "ron": "VOICE_ID_RON",
+  "leo": "VOICE_ID_LEO",
+  "model": "eleven_v4",
+  "note": "CARTER D = Ron, Kel = Leo, eleven_v4."
+ },
+ "meta": {
+  "person": "Ron (Ronaldo fan) loses the 'assists are for losers' fight; Leo (Messi fan) wins",
+  "sum": "no money: facts are Messi all-time assists record, Messi 2 goals in the 2022 World Cup final (one penalty), Ronaldo scored in the 2008, 2014 (penalty), 2017 Champions League finals",
+  "opener": "Leo slides Ron's pint (an assist) + plate ASSISTS ARE FOR / LOSERS?, Ron 'Assists are for WAITERS!'",
+  "sincere_beat": "none: Ron's own line betrays Ronaldo; ends drinking the assist with a tiny 'goal.'",
+  "withheld_opener": "Ron's self-own 'Ronaldo would NEVER pass in a big final' held to the last 15 s",
+  "thread": "",
+  "kind": "series:goat-beef",
+  "note": "new 17/11, owner batch of 4"
+ },
+ "pre": 0.0,
+ "tail": 0.9,
+ "seed": 7,
+ "sfx": [
+  {
+   "name": "whoosh",
+   "ref": "p1",
+   "off": 0.0,
+   "gain": -11,
+   "dur": 0.3,
+   "note": "pint slides"
+  },
+  {
+   "name": "pop",
+   "ref": "l2",
+   "off": 0.15,
+   "gain": -14,
+   "note": "plate"
+  },
+  {
+   "name": "thud",
+   "ref": "l4",
+   "off": 0.5,
+   "gain": -7,
+   "note": "pint slammed"
+  },
+  {
+   "name": "pop",
+   "ref": "l6",
+   "off": 0.5,
+   "gain": -10,
+   "note": "card"
+  },
+  {
+   "name": "thud",
+   "ref": "l8",
+   "off": 0.9,
+   "gain": -7,
+   "note": "table slap"
+  },
+  {
+   "name": "cheer",
+   "ref": "p12",
+   "off": 0.0,
+   "gain": -11,
+   "dur": 0.8,
+   "note": "TV OOOH hobby"
+  },
+  {
+   "name": "pop",
+   "ref": "l14",
+   "off": 0.5,
+   "gain": -10,
+   "note": "card"
+  },
+  {
+   "name": "cheer",
+   "ref": "p17",
+   "off": 0.0,
+   "gain": -10,
+   "dur": 0.9,
+   "note": "TV OOOH favorite kind"
+  },
+  {
+   "name": "pop",
+   "ref": "l18",
+   "off": 0.5,
+   "gain": -10,
+   "note": "card"
+  },
+  {
+   "name": "thud",
+   "ref": "l21",
+   "off": 0.7,
+   "gain": -6,
+   "note": "slam on NEVER"
+  },
+  {
+   "name": "cheer",
+   "ref": "p22",
+   "off": 0.35,
+   "gain": -8,
+   "dur": 1.0,
+   "note": "OOOH biggest"
+  },
+  {
+   "name": "whoosh",
+   "ref": "l25",
+   "off": 0.0,
+   "gain": -11,
+   "dur": 0.3,
+   "note": "pint slides again"
+  },
+  {
+   "name": "chime",
+   "ref": "p27",
+   "off": 0.2,
+   "gain": -12,
+   "note": "ask"
+  }
+ ],
+ "music": {
+  "file": "out/gb11/goat_bed.wav",
+  "lufs": -27,
+  "fade": 1.0,
+  "note": "GOAT Beef pub bed: copy of out/gb04/goat_bed.wav",
+  "mood": "coin",
+  "seed": 7,
+  "segs": [
+   {
+    "seg": "HOOK",
+    "ref": 0
+   },
+   {
+    "seg": "R1",
+    "ref": "l2",
+    "off": 0.0
+   },
+   {
+    "seg": "R2",
+    "ref": "l8",
+    "off": -0.2
+   },
+   {
+    "seg": "R3",
+    "ref": "l13b",
+    "off": -0.2
+   },
+   {
+    "seg": "RANT",
+    "ref": "l18",
+    "off": -0.1
+   },
+   {
+    "seg": "END",
+    "ref": "p22",
+    "off": -0.05
+   }
+  ]
+ },
+ "duck": [
+  {
+   "from": "l23",
+   "to": "l23.end",
+   "k": 0.3
+  }
+ ],
+ "hits": [
+  {
+   "ref": "l21",
+   "off": 0.7,
+   "frames": 3,
+   "note": "slam on NEVER"
+  }
+ ],
+ "beats": [
+  {
+   "id": "p1",
+   "pause": 0.15,
+   "tension": 5,
+   "note": "free PINT: Leo's hand slides Ron's full pint across the table to him (whoosh); plate ASSISTS ARE FOR / LOSERS?"
+  },
+  {
+   "id": "l2",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Assists are for WAITERS! Goals win games!",
+   "gap": 0.06,
+   "level": -20.0,
+   "say": "Assists are for WAITERS! Goals win games!",
+   "mood": "joy",
+   "tension": 6,
+   "note": "ms_ron_lo, catches the pint",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l3",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Here. Assist.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Here. Assist.",
+   "mood": "flat",
+   "tension": 5,
+   "note": "cu_leo_lo, nudges the pint the last inch",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l4",
+   "who": "ron",
+   "spk": "RON",
+   "text": "GOAL!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "GOAL!",
+   "mood": "joy",
+   "tension": 6,
+   "note": "ms_ron: one big gulp, slams the pint (thud)",
+   "new": true,
+   "land": "gag"
+  },
+  {
+   "id": "l5b",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Nobody remembers the waiter. I'm FULL.",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "Nobody remembers the waiter. I'm FULL.",
+   "mood": "joy",
+   "tension": 5,
+   "note": "ms_ron_lo, foam moustache",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l6",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Mine has the most assists EVER.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Mine has the most assists EVER.",
+   "mood": "smug",
+   "tension": 8,
+   "note": "cu_leo_lo; card MOST ASSISTS IN HISTORY / MESSI",
+   "new": true,
+   "land": "gag"
+  },
+  {
+   "id": "p7",
+   "pause": 0.6,
+   "tension": 4,
+   "note": "REACT cu_ron_hi"
+  },
+  {
+   "id": "l8",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Mine has more GOALS! Check the SCOREBOARD!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "Mine has more GOALS! Check the SCOREBOARD!",
+   "mood": "anger",
+   "tension": 6,
+   "note": "ms_ron, table slap",
+   "new": true,
+   "land": "gag"
+  },
+  {
+   "id": "l9a",
+   "who": "ron",
+   "spk": "RON",
+   "text": "An assist is a pass that got LUCKY!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "An assist is a pass that got LUCKY!",
+   "mood": "joy",
+   "tension": 5,
+   "note": "ms_ron_lo",
+   "new": true
+  },
+  {
+   "id": "l9b",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Lucky over three hundred times.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Lucky over three hundred times.",
+   "mood": "flat",
+   "tension": 8,
+   "note": "cu_leo_lo; Ron listener shock",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "p9c",
+   "pause": 0.5,
+   "tension": 4,
+   "note": "REACT cu_ron_hi"
+  },
+  {
+   "id": "l9",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Yours shoots from forty yards. Every. Time.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Yours shoots from forty yards. Every. Time.",
+   "mood": "smug",
+   "tension": 7,
+   "note": "cu_leo",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l10",
+   "who": "ron",
+   "spk": "RON",
+   "text": "That's CONFIDENCE!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "That's CONFIDENCE!",
+   "mood": "anger",
+   "tension": 5,
+   "note": "ms_ron_lo, chest out",
+   "new": true
+  },
+  {
+   "id": "l11",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "That's a hobby.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "That's a hobby.",
+   "mood": "flat",
+   "tension": 8,
+   "note": "cu_leo_lo deadpan; TV crowd OOOH",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "p12",
+   "pause": 0.6,
+   "tension": 4,
+   "note": "REACT cu_ron_hi: eye twitch"
+  },
+  {
+   "id": "l12a",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Mine has the most international goals EVER!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "Mine has the most international goals EVER!",
+   "mood": "joy",
+   "tension": 6,
+   "note": "ms_ron_lo; card MOST MEN'S INTERNATIONAL GOALS / RONALDO",
+   "new": true
+  },
+  {
+   "id": "l12b",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Great. Who passed him the ball?",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Great. Who passed him the ball?",
+   "mood": "flat",
+   "tension": 8,
+   "note": "cu_leo_lo deadpan",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l13b",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Your guy passes 'cause he's SCARED!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "Your guy passes 'cause he's SCARED!",
+   "mood": "anger",
+   "tension": 5,
+   "note": "ots_ron, finger jab",
+   "new": true
+  },
+  {
+   "id": "l14",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "He scored twice in a World Cup FINAL.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "He scored twice in a World Cup FINAL.",
+   "mood": "smug",
+   "tension": 8,
+   "note": "cu_leo_lo; card WORLD CUP FINAL 2022 / MESSI: 2 GOALS",
+   "new": true,
+   "land": "gag"
+  },
+  {
+   "id": "l15",
+   "who": "ron",
+   "spk": "RON",
+   "text": "One was a PENALTY!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "One was a PENALTY!",
+   "mood": "anger",
+   "tension": 5,
+   "note": "ms_ron, pounces",
+   "new": true
+  },
+  {
+   "id": "l16",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Your favorite kind.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Your favorite kind.",
+   "mood": "flat",
+   "tension": 8,
+   "note": "two; Ron listener horror; TV OOOH",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "p17",
+   "pause": 0.7,
+   "tension": 4,
+   "note": "REACT ecu_ron: the face breaks"
+  },
+  {
+   "id": "l18",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Mine scored in THREE Champions League finals!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "Mine scored in THREE Champions League finals!",
+   "mood": "joy",
+   "tension": 7,
+   "note": "ms_ron_lo standing; card 3 CL FINALS",
+   "new": true
+  },
+  {
+   "id": "l19",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Was one a penalty?",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Was one a penalty?",
+   "mood": "flat",
+   "tension": 8,
+   "note": "cu_leo, one slow sip",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l20",
+   "who": "ron",
+   "spk": "RON",
+   "text": "...Not the POINT!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "...Not the POINT!",
+   "mood": "fear",
+   "tension": 5,
+   "note": "ms_ron_hi",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "l21",
+   "who": "ron",
+   "spk": "RON",
+   "text": "Ronaldo would NEVER pass in a big final!",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "Ronaldo would NEVER pass in a big final!",
+   "mood": "anger",
+   "tension": 6,
+   "note": "two_lo, slams the table on NEVER",
+   "new": true
+  },
+  {
+   "id": "p22",
+   "pause": 1.0,
+   "tension": 10,
+   "note": "PEAK silent: Leo just looks at him; Ron hears what he said; TV crowd OOOH",
+   "land": "gag"
+  },
+  {
+   "id": "l23",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "...We know.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "...We know.",
+   "mood": "flat",
+   "tension": 7,
+   "note": "cu_leo_lo deadpan",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "p24",
+   "pause": 0.6,
+   "tension": 4,
+   "note": "REACT cu_ron_hi: horror"
+  },
+  {
+   "id": "l25",
+   "who": "leo",
+   "spk": "LEO",
+   "text": "Here. Assist.",
+   "gap": 0.18,
+   "level": -19.4,
+   "say": "Here. Assist.",
+   "mood": "flat",
+   "tension": 5,
+   "note": "two: Leo slides the pint to Ron again; reuse this episode's l3 take",
+   "reuse": "gb11/l3"
+  },
+  {
+   "id": "l26",
+   "who": "ron",
+   "spk": "RON",
+   "text": "...goal.",
+   "gap": 0.18,
+   "level": -20.0,
+   "say": "...goal.",
+   "mood": "sad",
+   "tension": 4,
+   "note": "ms_ron_hi: tiny sip, no joy",
+   "new": true,
+   "land": "laugh"
+  },
+  {
+   "id": "p27",
+   "pause": 1.0,
+   "tension": 3,
+   "note": "two: Ron with the pint, Leo sips the mate; pill ASSISTS OR GOALS? ONE WORD. + chime"
+  }
+ ]
+}
