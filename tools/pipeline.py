@@ -19,18 +19,20 @@ ROOT = os.path.abspath(os.path.expanduser(os.environ.get('CINE3D_ROOT') or os.pa
 if os.path.realpath(ROOT) == os.path.realpath(f'{HOME}/cine3d'): ROOT = f'{HOME}/cine3d'   # ~/cine3d may be a symlink: keep the name the owner uses
 STEPS = ['card', 'treatment', 'script', 'script_gate', 'voice', 'audio', 'picture', 'driver_review', 'render', 'episode_gate', 'owner', 'posted', 'ledger']
 STEPS_V2 = STEPS[:4] + ['build', 'animatic', 'animatic_owner', 'voice', 'audio', 'retime'] + STEPS[6:]   # rules 2 (trada): the credit lock. 24/11: `build` = the whole episode picture, silent, on ESTIMATED times; `animatic` = that build rendered at full motion without the voice; no ElevenLabs credit before the owner approved it; `retime` = after the voice: real times + mouth envelopes
+STEPS_GEMINI = ['card', 'treatment', 'script', 'script_gate', 'credit_owner', 'voice', 'audio', 'picture', 'render', 'episode_gate', 'driver_review', 'owner', 'posted', 'ledger']   # Gemini Studio workflow: single 3D build on real times, strict ElevenLabs credit lock via `credit_owner`, multimodal review via review_proxy.mp4
 EXTRA_META = {'build': dict(who='cine3d builder (silent build on estimated times)', agent='cine3d-builder', model='sonnet', effort='medium (high if the episode has action shots)', brief='build'),
               'animatic': dict(who='driver (main session; renders the silent build at full motion, no voice)'), 'animatic_owner': dict(who='owner (record only with his own words)'),
+              'credit_owner': dict(who='owner (Gemini Studio 1A credit lock after script_gate PASS + voice.py need quote; record only with his own words)'),
               'retime': dict(who='cine3d builder (real times + mouth envelopes after the voice)', agent='cine3d-builder', model='sonnet', effort='medium', brief='build')}
-RECORDABLE = ['script_gate', 'facts', 'animatic_owner', 'driver_review', 'render', 'episode_gate', 'owner', 'posted']
+RECORDABLE = ['script_gate', 'facts', 'animatic_owner', 'credit_owner', 'driver_review', 'render', 'episode_gate', 'owner', 'posted']
 ALLOWED = {'script_gate': ('PASS', 'FAIL'), 'facts': ('GO', 'NOGO'), 'driver_review': ('OK', 'FIX'), 'render': ('OK', 'DONE'),
-           'episode_gate': ('PASS', 'FAIL'), 'owner': ('OK', 'NO'), 'posted': ('OK',), 'animatic_owner': ('OK', 'NO')}
+           'episode_gate': ('PASS', 'FAIL'), 'owner': ('OK', 'NO'), 'posted': ('OK',), 'animatic_owner': ('OK', 'NO'), 'credit_owner': ('OK', 'NO')}
 # 14/11: every step takes the same verdict words, any case. pass / ok / done / go = positive, fail / fix / no / nogo = negative; the stored word is the step's own (first / second of ALLOWED)
 POS_WORDS = {'PASS', 'OK', 'DONE', 'GO'}; NEG_WORDS = {'FAIL', 'FIX', 'NO', 'NOGO', 'NO-GO'}
 STALE_SCRIPT = 'STALE (a line, its speaker, its `say`, the order of the lines or the header meta changed since the verdict: re-ask only the changed points; sound and timing edits do not count)'
 STALE_OLD = 'STALE (this verdict was recorded with the old whole-file hash and beats.json changed since: if only sound or timing fields changed, record it again with a note; if a line changed, re-ask only the changed points)'
 JV = 2   # version of the judged-content hash of the script gate
-OKV = {'script_gate': 'PASS', 'facts': 'GO', 'driver_review': 'OK', 'render': ('OK', 'DONE'), 'episode_gate': 'PASS', 'owner': 'OK', 'animatic_owner': 'OK'}
+OKV = {'script_gate': 'PASS', 'facts': 'GO', 'driver_review': 'OK', 'render': ('OK', 'DONE'), 'episode_gate': 'PASS', 'owner': 'OK', 'animatic_owner': 'OK', 'credit_owner': 'OK'}
 TREATMENT_HEADINGS = ['About', 'Feelings', 'Cause chain', 'Tension curve', '0-3 s', '4-10 s', 'Last 15 s', 'Sound plan']
 CARD_REQ = {'trada': ['title', 'person', 'sum', 'recipient', 'first_frame', 'kind'],
             'goat': ['title', 'claim', 'side', 'comment_ron', 'comment_leo', 'facts', 'kind']}
@@ -42,7 +44,9 @@ def rules_of(st):
     try: B = json.load(open(f'{ROOT}/episodes/{st["id"]}.beats.json', encoding='utf-8'))
     except Exception: B = None
     return rules2.rules_version(B, st, None)
-def steps_of(st): return STEPS_V2 if rules_of(st) == 2 else STEPS
+def steps_of(st):
+    if (st or {}).get('workflow') == 'gemini': return STEPS_GEMINI
+    return STEPS_V2 if rules_of(st) == 2 else STEPS
 def num(st, s): return steps_of(st).index(s) + 1
 def r2args(st): return ['--rules', '2'] if rules_of(st) == 2 else []   # added to the lint and qa commands only for v2, so a v1 command and cache key stay exactly as before
 
@@ -275,7 +279,7 @@ def check_script(st, e, run):
         if s == 'DONE' and ESTIMATED.search(out): r = '(timing estimated; re-checked at the audio step) ' + r
         return s, r
     chk = [dict(name='scriptlint', args=[py('p'), 'tools/scriptlint.py', rel(e.beats), '--strict'] + r2, custom=lint, repro=cmd)]
-    return machine(st, 'script', keyof(sha(e.beats), sha(e.times_json), sha(e.times_js), tool_sig('scriptlint.py'), *(['rules2', tool_sig('rules2.py')] if r2 else [])), chk, run, [e.beats])
+    return machine(st, 'script', keyof(sha(e.beats), tool_sig('scriptlint.py'), *(['rules2', tool_sig('rules2.py')] if r2 else [])), chk, run, [e.beats])
 
 
 # ---------------------------------------------------------------- recorded verdict steps
@@ -335,6 +339,15 @@ def check_animatic_owner(st, e):
     rec = st['records'].get('animatic_owner')
     if r.done() and rec: r.reason += f' quote: "{rec.get("quote", "")[:80]}"'
     return r
+def check_credit_owner(st, e):
+    h = judged_hash(e.beats)
+    def m(rec):
+        cur = judged_hash(e.beats)
+        return 'the script text changed after the owner approved voice credit' if rec.get('jhash') and cur and rec['jhash'] != cur else None
+    r = verdict_check(st, 'credit_owner', h, 'credit owner', [e.beats], f'pipeline.py record {e.id} credit_owner OK --by <who> --quote "<the owner\'s own words>"', m)
+    rec = st['records'].get('credit_owner')
+    if r.done() and rec: r.reason += f' quote: "{rec.get("quote", "")[:80]}"'
+    return r
 
 
 # ---------------------------------------------------------------- step 5, 6: voice, audio
@@ -370,7 +383,7 @@ def check_audio(st, e, run):
     chk = [dict(name='audiogate', args=[py('venv'), 'tools/audiogate.py', rel(e.beats)], pass_re=r'^AUDIO PASS.*', fail_re=r'^AUDIO FAIL.*', repro=cmd),
            dict(name='scriptlint with the real times', args=[py('p'), 'tools/scriptlint.py', rel(e.beats), '--strict'] + r2, custom=lint_real, repro=lcmd)]
     # 14/11: the episode .js is part of the key (audiogate's check f reads the cut list from it), so a result cached before the episode file existed re-runs once it appears or changes
-    key = keyof(sha(e.beats), [fstat(f) for f in outs], sha(e.times_json), fstat(f'{e.audio}/mix_raw.wav'), sha(e.episode), tool_sig('audiogate.py', 'cuts.cjs', 'scriptlint.py'), *(['rules2'] if r2 else []))
+    key = keyof(sha(e.beats), [fstat(f) for f in outs], sha(e.times_json), fstat(f'{e.audio}/mix_raw.wav'), sha(e.episode), tool_sig('audiogate.py', 'cuts.cjs', 'scriptlint.py'), *(['rules2', tool_sig('rules2.py')] if r2 else []))
     r = machine(st, 'audio', key, chk, run, outs)
     m = re.search(r'(\d+) SKIPPED: ([^;]*?)(?:;|$)', r.reason or '')
     if r.state == 'DONE' and m:   # a skipped check is never shown as plain DONE
@@ -392,16 +405,26 @@ def check_picture(st, e, run):
 def sheets(e):
     import glob
     return sorted(glob.glob(f'{e.out}/cs*.jpg')), sorted(glob.glob(f'{e.out}/strip_*.jpg'))
+def review_proxy(e):
+    p = f'{e.out}/review_proxy.mp4'
+    return p if os.path.exists(p) else None
 def check_driver_review(st, e):
-    h = sha(e.episode); cs, strips = sheets(e)
-    cmd = f'python3 tools/sheets.py {rel(e.episode)}  (contact sheets), then  python3 tools/sheets.py {rel(e.episode)} <t0> <t1>  (motion strip of one action)'
+    h = sha(e.episode); cs, strips = sheets(e); proxy = review_proxy(e)
+    is_gem = st.get('workflow') == 'gemini'
+    cmd = f'python3 tools/build_check.py {rel(e.episode)} --final  (or --proxy-only)' if is_gem else f'python3 tools/sheets.py {rel(e.episode)}  (contact sheets), then  python3 tools/sheets.py {rel(e.episode)} <t0> <t1>  (motion strip of one action)'
     rec_cmd = f'pipeline.py record {e.id} driver_review OK --by driver --note "..."'
-    if not cs: return R('FAIL' if st['records'].get('driver_review') else 'TODO', f'no contact sheets {rel(e.out)}/cs*.jpg: the driver cannot have read what does not exist', cmd, [e.episode])
-    if mtime(cs[-1]) < mtime(e.episode): sheet_old = f'contact sheets older than {rel(e.episode)} (made before the last edit): re-make them'
-    else: sheet_old = None
-    r = verdict_check(st, 'driver_review', h, 'driver review', [e.episode] + cs[:1], rec_cmd)
-    if r.state == 'DONE' and sheet_old: return R('FAIL', sheet_old, cmd, [e.episode])
-    if r.state == 'TODO': r.reason += f'  ({len(cs)} contact sheets, {len(strips)} motion strips in {rel(e.out)})' + (f'; WARNING {sheet_old}' if sheet_old else '')
+    if not cs and not proxy:
+        why = f'no review proxy {rel(e.out)}/review_proxy.mp4 (nor cs*.jpg): the driver cannot review what does not exist' if is_gem else f'no contact sheets {rel(e.out)}/cs*.jpg: the driver cannot have read what does not exist'
+        return R('FAIL' if st['records'].get('driver_review') else 'TODO', why, cmd, [e.episode])
+    latest = max(mtime(x) for x in ([cs[-1]] if cs else []) + ([proxy] if proxy else []))
+    ep_m = mtime(e.episode) or 0
+    proof_old = f'review proof older than {rel(e.episode)} (made before the last edit): re-make it' if latest < ep_m else None
+    proof_files = [e.episode] + ([proxy] if proxy else []) + cs[:1]
+    r = verdict_check(st, 'driver_review', h, 'driver review', proof_files, rec_cmd)
+    if r.state == 'DONE' and proof_old: return R('FAIL', proof_old, cmd, [e.episode])
+    if r.state == 'TODO':
+        desc = f'review_proxy.mp4' + (f' + {len(cs)} contact sheets' if cs else '') if proxy else f'{len(cs)} contact sheets, {len(strips)} motion strips'
+        r.reason += f'  ({desc} in {rel(e.out)})' + (f'; WARNING {proof_old}' if proof_old else '')
     return r
 
 
@@ -485,7 +508,7 @@ def evaluate(st, run=False, upto=None):
              'script_gate': lambda: check_script_gate(st, e, ch), 'voice': lambda: check_voice(st, e, run), 'audio': lambda: check_audio(st, e, run),
              'picture': lambda: check_picture(st, e, run), 'driver_review': lambda: check_driver_review(st, e), 'render': lambda: check_render(st, e, run),
              'episode_gate': lambda: check_episode_gate(st, e), 'owner': lambda: check_owner(st, e), 'posted': lambda: check_posted(st, e, ch),
-             'ledger': lambda: check_ledger(st, e, ch), 'build': lambda: check_build(st, e), 'retime': lambda: check_retime(st, e), 'animatic': lambda: check_animatic(st, e), 'animatic_owner': lambda: check_animatic_owner(st, e)}[s]()
+             'ledger': lambda: check_ledger(st, e, ch), 'build': lambda: check_build(st, e), 'retime': lambda: check_retime(st, e), 'animatic': lambda: check_animatic(st, e), 'animatic_owner': lambda: check_animatic_owner(st, e), 'credit_owner': lambda: check_credit_owner(st, e)}[s]()
         rec = st['records'].get(s) or (st['records'].get('facts') if s == 'script_gate' and not st['records'].get('script_gate') else None)
         for k in ((s, 'facts') if s == 'script_gate' else (s,)):
             if st['records'].get(k, {}).get('forced') and r.state != 'TODO': r.forced = st['records'][k]['forced']
@@ -498,7 +521,7 @@ def stale_notes(st):
     def chk(k, cur):
         if k in R_ and R_[k].get('hash') is not None and cur is not None and R_[k]['hash'] != cur: out.append(k)
     bm = beats_match(dict(id=st['id']), e)
-    for k in ('script_gate', 'facts'):
+    for k in ('script_gate', 'facts', 'credit_owner'):
         if k in R_ and sha(e.beats) is not None and bm(dict(R_[k])): out.append(k)
     if 'animatic_owner' in R_: chk('animatic_owner', rules2.animatic_hash(st['id']))
     chk('driver_review', sha(e.episode))
@@ -549,6 +572,8 @@ def guide(st, e, step, r):
         g.update(what='Rules 2: render the built episode at full motion WITHOUT the voice (30 fps, 1080x1920; music/SFX only if their stems exist; clean picture, no timecode strip: add --timecode only for a review copy, a delivered Final never has it) = the owner watches the real film minus the voice. Never calls ElevenLabs. --stills = the old one-still-per-shot version; --fps 15 for a quicker look; --wide for the Sunday 16:9 long video (9:16 picture padded, not a true 16:9 layout).', proof=[f'out/{i}/animatic.mp4', f'out/{i}/animatic_sheet.jpg'], cmds=[f'{V} tools/animatic.py {b}', f'pipeline.py status {i}'])
     elif step == 'animatic_owner':
         g.update(what='Rules 2 credit lock: the owner watches the silent animatic and approves it. Record his OK with his own words. voice.py refuses to call ElevenLabs until this is DONE. Never record it for him.', proof=[f'recorded verdict in {rel(e.state_path)}', 'animatic proof unchanged since the verdict'], cmds=[f'pipeline.py record {i} animatic_owner OK|NO --by <who> --quote "<owner words>"'])
+    elif step == 'credit_owner':
+        g.update(what='Gemini Studio credit lock (1A): show the owner script_gate PASS + voice.py need credit quote and get explicit OK before calling ElevenLabs. voice.py refuses `record` until this is DONE. Never record it for him.', proof=[f'recorded verdict in {rel(e.state_path)}', 'beats judged text unchanged since the verdict'], cmds=[f'{V} tools/voice.py need {b}', f'pipeline.py record {i} credit_owner OK|NO --by <who> --quote "<owner words>"'])
     elif step == 'voice':
         g.update(what='Record every missing line (credit ceiling set by the driver; never above it), then re-check.', proof=[f'voice/{i}/<beat id>.mp3|wav'], cmds=[f'agent: {c["voice_agent"]}', f'{V} tools/voice.py need {b}', f'pipeline.py status {i} --run'])
     elif step == 'audio':
@@ -558,8 +583,11 @@ def guide(st, e, step, r):
     elif step == 'picture':
         g.update(what='Rules 1: write the episode file, make the mouth envelopes; rules 2: it is already built, so re-run qa + clipcheck on the retimed picture, to PASS (waivers need a reason and one named object; walks, ep.touch and reads declared; read dense strips >= 8 fps, tiles >= 540 px of every move / contact passage).', proof=[ep, f'episodes/{i}_lips.json'], cmds=[f'agent: {c["builder_agent"]}', f'node tools/qa.cjs {ep} --beats {b}', f'node tools/clipcheck.cjs {ep}', f'pipeline.py status {i} --run'])
     elif step == 'driver_review':
-        cs, strips = sheets(e)
-        g.update(what='Driver reads the contact sheets and the motion strip of every action against the treatment, writes ONE fix list or records OK.', proof=[f'out/{i}/cs*.jpg ({len(cs)} found)', f'out/{i}/strip_*.jpg ({len(strips)} found)'], cmds=[f'{T("sheets.py")} {ep}', f'pipeline.py record {i} driver_review OK|FIX --by driver --note "..."'])
+        cs, strips = sheets(e); proxy = review_proxy(e)
+        if st.get('workflow') == 'gemini':
+            g.update(what='Main (Gemini 4 Neon High) watches + listens to review_proxy.mp4 (6-door check) via read_file, writes ONE fix list or records OK.', proof=[f'out/{i}/review_proxy.mp4 ({"found" if proxy else "missing"})'], cmds=[f'python3 tools/build_check.py {ep} --final', f'pipeline.py record {i} driver_review OK|FIX --by driver --note "..."'])
+        else:
+            g.update(what='Driver reads the contact sheets and the motion strip of every action against the treatment, writes ONE fix list or records OK.', proof=[f'out/{i}/cs*.jpg ({len(cs)} found)', f'out/{i}/strip_*.jpg ({len(strips)} found)'], cmds=[f'{T("sheets.py")} {ep}', f'pipeline.py record {i} driver_review OK|FIX --by driver --note "..."'])
     elif step == 'render':
         g.update(what='30 fps render of the final cut (the standard since 23/11/2026: CRF 17, AAC 192k 48 kHz), then record the mp4 (smooth.py must pass).', proof=[f'out/{i}/{i}.mp4'], cmds=[f'node tools/render.cjs mp4 {ep} out/{i}/{i}.mp4 --fps 30 --audio out/{i}/audio/mix.wav', f'{V} tools/smooth.py out/{i}/{i}.mp4 --ep {ep}   (prints SMOOTH PASS)', f'pipeline.py record {i} render OK --by <who> --mp4 out/{i}/{i}.mp4', f'pipeline.py status {i} --run'])
     elif step == 'episode_gate':
@@ -612,6 +640,7 @@ def cmd_new(a):
     if not os.path.exists(e.state_path):
         ns = new_state(a.id, ch)
         if ch == 'trada': ns['rules'] = 2   # 23/11: a new Trà đá episode follows Master Blueprint v2.0 (goat and every old episode stay on rules 1)
+        if getattr(a, 'workflow', None) == 'gemini': ns['workflow'] = 'gemini'
         save_state(ns); made.append(rel(e.state_path))
     print(f'created only the missing files: {", ".join(made)} (existing files are never overwritten); fill every required card field: {", ".join(CARD_REQ[ch])}\nnext: pipeline.py next {a.id}')
 def cmd_mix(a):
@@ -631,10 +660,13 @@ def cmd_adopt(a):
     valid_id(a.id); channel(a.channel); e = Ep(a.id)
     if os.path.exists(e.state_path): print(f'{a.id} already has {rel(e.state_path)} (channel {load_state(a.id)["channel"]}); showing status'); return cmd_status(argparse.Namespace(id=a.id, run=False, json=False))
     if not e.related(): die(f'nothing on disk for {a.id} (no episodes/{a.id}.*): use `new {a.id} --channel {a.channel}`', 1)
-    save_state(new_state(a.id, a.channel)); print(f'adopted {a.id} into {a.channel}: {rel(e.state_path)} written; no force applied, missing early artefacts are TODO'); cmd_status(argparse.Namespace(id=a.id, run=False, json=False))
+    ns = new_state(a.id, a.channel)
+    if getattr(a, 'workflow', None) == 'gemini': ns['workflow'] = 'gemini'
+    save_state(ns); print(f'adopted {a.id} into {a.channel}: {rel(e.state_path)} written; no force applied, missing early artefacts are TODO'); cmd_status(argparse.Namespace(id=a.id, run=False, json=False))
 
 def tkey(spk, text):
-    s = unicodedata.normalize('NFC', text).replace('…', '...').strip().lower(); return f"{spk}|{re.sub(r'\s+', ' ', s)}"
+    s = re.sub(r'\s+', ' ', unicodedata.normalize('NFC', text).replace('…', '...').strip().lower())
+    return f'{spk}|{s}'
 def cmd_copy(a):
     import glob, shutil
     valid_id(a.new_id); src, new = Ep(a.id), Ep(a.new_id); s0 = load_state(a.id, must=False)
@@ -665,7 +697,11 @@ def cmd_copy(a):
             else: missing += 1
     print(f'copied {a.id} -> {a.new_id} (channel {ch}); the source is untouched:\n' + '\n'.join(L) + f'\nvoice: {known} lines already found in the take index, {copied} takes copied to voice/{a.new_id}/, {missing} lines without any take (`voice.py need` lists them)')
     if os.path.exists(new.state_path): return
-    save_state(new_state(a.new_id, ch)); cmd_status(argparse.Namespace(id=a.new_id, run=False, json=False))
+    ns = new_state(a.new_id, ch)
+    if s0 and 'rules' in s0 and ch != 'goat': ns['rules'] = s0['rules']
+    elif ch == 'trada' and isinstance(beats, dict) and beats.get('rules'): ns['rules'] = beats['rules']
+    if s0 and s0.get('workflow'): ns['workflow'] = s0['workflow']
+    save_state(ns); cmd_status(argparse.Namespace(id=a.new_id, run=False, json=False))
 
 def flush(st):
     if st['id'] in DIRTY: save_state(st); DIRTY.discard(st['id'])
@@ -729,8 +765,10 @@ def cmd_record(a):
     if v not in ALLOWED[step]: die(f'verdict {a.verdict!r} not allowed for {step}; use pass/ok/done/go (stored as {ALLOWED[step][0]}) or fail/fix/no (stored as {ALLOWED[step][-1] if len(ALLOWED[step]) > 1 else "none"}), any case')
     if not a.by or not a.by.strip(): die(f'--by <who> is required (every verdict names who gave it)')
     if step == 'owner' and not (a.quote and a.quote.strip()): die('owner needs --quote "<the owner\'s own words>" (never record the owner\'s OK without his words)')
-    if step == 'animatic_owner' and rules_of(st) != 2: die('animatic_owner exists only for rules 2 (Trà đá v2) episodes; this one is rules 1')
+    if step == 'animatic_owner' and step not in steps_of(st): die('animatic_owner is not a step in this episode\'s workflow (only Claude rules-2 uses animatic_owner; Gemini workflow uses credit_owner)')
     if step == 'animatic_owner' and not (a.quote and a.quote.strip()): die('animatic_owner needs --quote "<the owner\'s own words>" (never record the owner\'s OK without his words)')
+    if step == 'credit_owner' and step not in steps_of(st): die('credit_owner exists only for `--workflow gemini` episodes; Claude rules-2 uses animatic_owner')
+    if step == 'credit_owner' and not (a.quote and a.quote.strip()): die('credit_owner needs --quote "<the owner\'s own words>" (never record the owner\'s OK without his words)')
     if step == 'facts' and ch != 'goat': die('facts verdicts exist only for the goat channel')
     if step == 'posted' and not (a.platform and a.video_id): die('posted needs --platform <name> and --video-id <id>')
     if a.force is not None and not a.force.strip(): die('--force needs a reason')
@@ -759,9 +797,15 @@ def cmd_record(a):
         rec['hash'] = rules2.animatic_hash(e.id)
         if not rec['hash']: die(f'REFUSED: no silent animatic to approve (out/{e.id}/animatic.mp4, animatic_sheet.jpg or animatic/*.jpg)', 1)
         rec['jhash'] = judged_hash(e.beats); rec['jv'] = JV
+    elif step == 'credit_owner':
+        if not os.path.exists(e.beats): die(f'cannot record: {rel(e.beats)} does not exist', 1)
+        rec['hash'] = sha(e.beats); rec['jhash'] = judged_hash(e.beats); rec['jv'] = JV
+        if not rec['jhash']: die(f'cannot record: {rel(e.beats)} is not a beats file (JSON with a "beats" list)', 1)
     elif step == 'driver_review':
-        cs, _ = sheets(e)
-        if not cs and a.force is None: die(f'REFUSED: no contact sheets in {rel(e.out)}/cs*.jpg. Make them: python3 tools/sheets.py {rel(e.episode)}', 1)
+        cs, _ = sheets(e); proxy = review_proxy(e)
+        if not cs and not proxy and a.force is None:
+            hint = f'python3 tools/build_check.py {rel(e.episode)} --final' if st.get('workflow') == 'gemini' else f'python3 tools/sheets.py {rel(e.episode)}'
+            die(f'REFUSED: no review proof in {rel(e.out)} (neither review_proxy.mp4 nor cs*.jpg). Make it: {hint}', 1)
         if not os.path.exists(e.episode): die(f'cannot record: {rel(e.episode)} does not exist', 1)
         rec['hash'] = sha(e.episode)
     elif step == 'render':
@@ -802,7 +846,7 @@ def cmd_can_post(a):
             if a.json: print(json.dumps(dict(can_post=False, blocked_step=s, state=r.state if r else None, reason=r.reason if r else None), ensure_ascii=False))
             else: print(msg)
             sys.exit(1)
-    fl = [f for f in forced_list(st) if f['step'] in ('script_gate', 'facts', 'animatic_owner', 'driver_review', 'render', 'episode_gate', 'owner')]
+    fl = [f for f in forced_list(st) if f['step'] in ('script_gate', 'facts', 'animatic_owner', 'credit_owner', 'driver_review', 'render', 'episode_gate', 'owner')]
     if fl and not a.allow_forced:
         msg = f'BLOCKED: steps 1-{num(st, "owner")} are done but ' + '; '.join(f'{f["step"]} was FORCED ({f["reason"]})' for f in fl) + '. Only the owner may accept this: can-post --allow-forced'
         print(json.dumps(dict(can_post=False, forced=fl), ensure_ascii=False) if a.json else msg); sys.exit(1)
@@ -825,13 +869,13 @@ def cmd_list(a):
 
 
 USAGE = '''pipeline.py: where is this episode, what is next, who does it, which gate cannot be skipped. Run from ~/cine3d. `pipeline.py <command> --help` for options.
-  new <id> --channel trada|goat        write the missing card skeleton + pipeline.json (never overwrites)   e.g. new ngay14 --channel trada
+  new <id> --channel trada|goat [--workflow claude|gemini]  write the missing card skeleton + pipeline.json (never overwrites)   e.g. new ngay14 --channel trada --workflow gemini
   adopt <id> --channel X               give an episode already on disk a pipeline.json (nothing forced)    e.g. adopt ngay12 --channel trada
   copy <src-id> <new-id> [--channel X] copy card, treatment, beats, episode + side files under a new id    e.g. copy ngay12 ngay12v5
   status <id> [--run] [--json]         one line per step + NEXT; --run re-runs the current machine check    e.g. status ngay12 --run
   next <id> [--json]                   the next step: who, model, effort, commands, proof, brief            e.g. next ngay12
   brief <id> <template>                print a brief template with the episode's paths filled in           e.g. brief ngay12 build
-  record <id> <step> <verdict> --by W  record a verdict (steps: script_gate facts animatic_owner driver_review render episode_gate owner posted)
+  record <id> <step> <verdict> --by W  record a verdict (steps: script_gate facts animatic_owner credit_owner driver_review render episode_gate owner posted)
                                        e.g. record ngay12 script_gate PASS --by tdvai-script-reviewer --note "10/10"
   can-post <id> [--allow-forced]       exit 0 + CAN POST only when every step up to owner is done (1-11, or 1-15 with rules 2), nothing stale   e.g. can-post ngay12
   list [--channel X] [--json]          every episode with a pipeline.json, current step, forced/stale      e.g. list --channel goat
@@ -845,8 +889,8 @@ def main():
     if sys.argv[1] in ('-h', '--help', 'help'): print(USAGE); sys.exit(0)
     P = argparse.ArgumentParser(prog='pipeline.py', description=__doc__.split('\n')[0]); S = P.add_subparsers(dest='cmd', required=True)
     p = S.add_parser('copy'); p.add_argument('id'); p.add_argument('new_id'); p.add_argument('--channel', choices=['trada', 'goat']); p.set_defaults(f=cmd_copy)
-    p = S.add_parser('new'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.set_defaults(f=cmd_new)
-    p = S.add_parser('adopt'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.set_defaults(f=cmd_adopt)
+    p = S.add_parser('new'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.add_argument('--workflow', choices=['claude', 'gemini'], default='claude'); p.set_defaults(f=cmd_new)
+    p = S.add_parser('adopt'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.add_argument('--workflow', choices=['claude', 'gemini'], default='claude'); p.set_defaults(f=cmd_adopt)
     p = S.add_parser('status'); p.add_argument('id'); p.add_argument('--run', action='store_true'); p.add_argument('--json', action='store_true'); p.set_defaults(f=cmd_status)
     p = S.add_parser('next'); p.add_argument('id'); p.add_argument('--json', action='store_true'); p.set_defaults(f=cmd_next)
     p = S.add_parser('brief'); p.add_argument('id'); p.add_argument('template'); p.set_defaults(f=cmd_brief)

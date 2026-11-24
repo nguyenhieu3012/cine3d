@@ -211,7 +211,9 @@ if V2:   # ---------------- rules 2 (Master Blueprint v2.0, 23/11/2026): what th
     else: warns.append('v2_hook: not measured: the header has no "hook" (the hook text on screen); add "hook": "<= 5 words" to measure the word count and the overlap with the first line (qa.cjs also checks the hook overlay of the episode file)')
     cards = [(str(x.get('id') or x.get('ref') or '#'), x.get('text', '')) if isinstance(x, dict) else ('#', x) for x in (B.get('cards') or [])] + [(b['id'], b['card']) for b in bs if isinstance(b.get('card'), str)]   # header `cards`: ["text", {id, text}] and/or per-beat `card`
     for cid, ct in cards:
-        if len(wds(ct)) > CARD_MAX: fails.append(f'v2_card_words: message card{'' if cid == '#' else ' ' + cid} "{ct}" has {len(wds(ct))} words (max {CARD_MAX})')
+        if len(wds(ct)) > CARD_MAX:
+            _clab = '' if cid == '#' else ' ' + cid
+            fails.append(f'v2_card_words: message card{_clab} "{ct}" has {len(wds(ct))} words (max {CARD_MAX})')
     if not cards: warns.append('v2_cards: not measured: no message-card text in the beats (header "cards": [...] or a "card" on a beat); qa.cjs measures the cards of the episode file (<= 8 words, 1.8-2.2 s)')
     tw = B.get('twist') or (M.get('twist') if isinstance(M, dict) else None)   # a beat id
     twb = next((b for b in bs if b['id'] == tw), None) if isinstance(tw, str) else next((b for b in bs if b.get('land') == 'turn'), None)   # else the first beat with land "turn"

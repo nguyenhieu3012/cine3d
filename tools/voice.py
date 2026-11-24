@@ -43,7 +43,8 @@ def opt(name, default=None):
 def now_iso(): return datetime.datetime.now().astimezone().isoformat(timespec='seconds')
 def credits(chars): return int(math.ceil(chars * CREDIT_MARGIN - 1e-9))
 def key(spk, text):
-    t = unicodedata.normalize('NFC', text).replace('…', '...').strip().lower(); return f"{spk}|{re.sub(r'\s+', ' ', t)}"
+    t = re.sub(r'\s+', ' ', unicodedata.normalize('NFC', text).replace('…', '...').strip().lower())
+    return f'{spk}|{t}'
 if len(sys.argv) > 1 and sys.argv[1] == 'find':   # voice.py find <SPEAKER> <words...>: library takes of that speaker whose text contains all the words (case and accents ignored)
     if len(sys.argv) < 4: sys.exit('usage: voice.py find <SPEAKER> <words...>   e.g. find TÈO chỉ có một chữ')
     want = fold(sys.argv[2]); words = [w for w in fold(' '.join(sys.argv[3:])).split(' ') if w]; hits = {}; texts = {}
@@ -52,7 +53,9 @@ if len(sys.argv) > 1 and sys.argv[1] == 'find':   # voice.py find <SPEAKER> <wor
             for bb in json.load(open(f, encoding='utf-8')).get('beats', []):
                 if 'text' in bb: texts[key(bb.get('spk', bb['who'].upper()), bb['text'])] = bb['text']
         except Exception: pass
-    libidx = json.load(open(f'{TD}/vo/lib/index.json')); ownidx = json.load(open(f'{ROOT}/voice/index.json')) if os.path.exists(f'{ROOT}/voice/index.json') else {}
+    _lib_p = f'{TD}/vo/lib/index.json'
+    libidx = json.load(open(_lib_p, encoding='utf-8')) if os.path.exists(_lib_p) else {}
+    ownidx = json.load(open(f'{ROOT}/voice/index.json', encoding='utf-8')) if os.path.exists(f'{ROOT}/voice/index.json') else {}
     def add(spk, text, where):
         if fold(spk) == want and all(w in fold(text) for w in words): hits.setdefault((spk, norm(text)), (spk, text, []))[2].append(where)
     for k, e in libidx.items(): add(e.get('spk', k.split('|')[0]), e.get('text', k.split('|', 1)[1]), e['file'])
@@ -67,14 +70,22 @@ if len(sys.argv) > 1 and sys.argv[1] == 'find':   # voice.py find <SPEAKER> <wor
     print(f'{len(rows)} take(s) of {sys.argv[2]} contain: {" ".join(words)}' + (' (first 40 shown)' if len(rows) > 40 else '') + ('' if rows else '  -> write the line new, or try fewer / shorter words'))
     sys.exit(0 if rows else 1)
 cmd, path = sys.argv[1], sys.argv[2]; B = json.load(open(path)); ID = B['id']
-if cmd == 'record':   # 23/11 credit lock (rules 2, pack trada only): no ElevenLabs call, not even the dry run, until the owner has approved the silent animatic. Checked BEFORE anything is written to disk.
+if cmd == 'record':   # 23/11 credit lock (rules 2 trada, or any Gemini Studio workflow episode): no ElevenLabs call, not even the dry run, until the owner has approved (animatic_owner in v2 OR credit_owner in Gemini 1A). Checked BEFORE anything is written to disk.
     import rules2
     _st = rules2.read_state(ID)
-    if rules2.rules_version(B, _st, rules2.cli_rules()) == 2 and not ('--channel' in sys.argv and sys.argv[sys.argv.index('--channel') + 1:][:1] == ['goat']):
-        _ok, _why = rules2.animatic_owner_ok(ID)
-        if not _ok: print(f'DỪNG LẠI: {ID} theo luật v2, chưa được thu giọng (chưa gọi ElevenLabs). the owner phải duyệt bản animatic câm (không tiếng) trước: {_why}.\n  Làm animatic, gửi the owner; khi the owner OK thì ghi: python3 tools/pipeline.py record {ID} animatic_owner OK --by <người ghi> --quote "<lời the owner>"\n  (STOP: v2 episode, animatic_owner not done: no ElevenLabs call was made.)'); sys.exit(3)
+    _is_goat_cli = '--channel' in sys.argv and sys.argv[sys.argv.index('--channel') + 1:][:1] == ['goat']
+    _need_lock = (rules2.rules_version(B, _st, rules2.cli_rules()) == 2 and not _is_goat_cli) or bool(_st and _st.get('workflow') == 'gemini')
+    if _need_lock:
+        _ok, _mode, _why = rules2.voice_unlocked(ID)
+        if not _ok:
+            if _mode == 'credit_owner':
+                print(f'DỪNG LẠI: {ID} chưa được mở khóa chi tiêu ElevenLabs ({_why}).\n  Chạy `voice.py need` báo giá cho chủ kênh; sau khi chủ kênh duyệt thì ghi:\n  python3 tools/pipeline.py record {ID} credit_owner OK --by <người ghi> --quote "<lời chủ kênh>"\n  (STOP: credit_owner not recorded: no ElevenLabs call was made.)')
+            else:
+                print(f'DỪNG LẠI: {ID} theo luật v2, chưa được thu giọng (chưa gọi ElevenLabs). the owner phải duyệt bản animatic câm (không tiếng) trước: {_why}.\n  Làm animatic, gửi the owner; khi the owner OK thì ghi: python3 tools/pipeline.py record {ID} animatic_owner OK --by <người ghi> --quote "<lời the owner>"\n  (STOP: v2 episode, animatic_owner not done: no ElevenLabs call was made.)')
+            sys.exit(3)
 OUT = f'{ROOT}/out/{ID}/audio'; os.makedirs(OUT, exist_ok=True)
-idx = json.load(open(f'{TD}/vo/lib/index.json'))
+_lib_p = f'{TD}/vo/lib/index.json'
+idx = json.load(open(_lib_p, encoding='utf-8')) if os.path.exists(_lib_p) else {}
 OWN = f'{ROOT}/voice/index.json'; own = json.load(open(OWN)) if os.path.exists(OWN) else {}   # cine3d's own takes: 'SPEAKER|text' -> voice/<episode>/<beat>.mp3
 def ff(x, af):
     return np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', str(SR), '-ac', '1', '-i', '-', '-af', af, '-f', 'f32le', '-'], input=x.astype(np.float32).tobytes(), capture_output=True, check=True).stdout, np.float32).copy()
@@ -242,7 +253,9 @@ for w, x in stems.items(): wav(f'vo_{w}', x)
 vo = sum(stems.values()); wav('vo_all', vo)
 
 # ---- sound effects (real CC0 library for v2 / sfxMode:"real", plus synthesised fallbacks, seeded) ----
-USE_REAL = (B.get('sfxMode') == 'real') or (B.get('sfxMode') != 'synth' and B.get('rules') == 2)
+import rules2 as _r2_mod
+_RV = _r2_mod.rules_version(B, _r2_mod.read_state(ID))
+USE_REAL = (B.get('sfxMode') == 'real') or (B.get('sfxMode') != 'synth' and _RV == 2)
 SYNTH_BUILTINS = {
     'riser', 'bloom', 'hum', 'pop', 'ting', 'kaching', 'buzz', 'ring', 'fizz', 'zap',
     'thud', 'whoosh', 'slide', 'clink', 'lock', 'chime', 'click', 'whirr', 'cheer',
@@ -255,8 +268,10 @@ R = np.random.default_rng(B.get('seed', 12)); tt = lambda d: np.arange(int(d * S
 def env(n, a=0.005, r=0.3): x = np.ones(n); na = max(1, int(a * SR)); x[:na] = np.linspace(0, 1, na); return x * np.exp(-np.arange(n) / SR / r)
 def lp(x, f): return ff(x, f'lowpass=f={f}')
 _STEP = {}
+def sfx_is_real(name, o=None):
+    return not (o or {}).get('synth') and (USE_REAL or name not in SYNTH_BUILTINS) and sfx_lib.has_sfx(name)
 def SFX(name, dur=None, o=None):
-    if not (o or {}).get('synth') and (USE_REAL or name not in SYNTH_BUILTINS) and sfx_lib.has_sfx(name):
+    if sfx_is_real(name, o):
         return sfx_lib.load_sfx(name, dur=dur, o=o, rng=R, sr=SR)
     if name == 'riser': d = dur or 1.4; n = tt(d); x = R.normal(0, 0.3, len(n)) * (n / d) ** 2; x = ff(x, 'highpass=f=500,lowpass=f=5000') * 0.8 + 0.25 * np.sin(2 * np.pi * (180 * n + 260 * n * n / d)) * (n / d) ** 1.5; return x * 0.5
     if name == 'bloom': d = dur or 2.2; n = tt(d); x = sum(a * np.sin(2 * np.pi * f * n) * np.exp(-n / r) for f, a, r in ((523.25, .5, .9), (783.99, .35, .8), (1046.5, .3, .7), (1318.5, .2, .6), (1568, .16, .5), (2093, .1, .4))); x += 0.5 * lp(R.normal(0, 0.4, len(n)) * np.exp(-n / 0.25), 1800); x += 0.6 * np.sin(2 * np.pi * 62 * n) * np.exp(-n / 0.35); return x * 0.5
@@ -440,9 +455,10 @@ if not LEGACY and (B.get('foley') == 'auto' or any(b.get('foley') == 'auto' for 
     else: print(f'FOLEY: "foley": "auto" asked but {evf} does not exist: run  node tools/events.cjs episodes/{ID}.js  and build again (no foley this pass)')
     in_scope = lambda t: any(a - 1e-6 <= t <= e + 1e-6 for a, e in foley_scopes) and not any(a <= t <= e for a, e in foley_off)
 
-FX = []   # every effect as placed: dict(name, t, x (mono, float32, before the 0.85 bus gain), src)
+FX = []   # every effect as placed: dict(name, t, x (mono, float32, before the 0.85 bus gain), src, lib)
 def put_fx(name, t, gain=0.0, dur=None, o=None, src='beats'):
-    x = SFX(name, dur, o) * 10 ** (gain / 20); FX.append(dict(name=name, t=float(t), x=x.astype(np.float32), src=src, gain=gain)); return FX[-1]
+    lib = 'real' if sfx_is_real(name, o) else 'synth'
+    x = SFX(name, dur, o) * 10 ** (gain / 20); FX.append(dict(name=name, t=float(t), x=x.astype(np.float32), src=src, gain=gain, lib=lib)); return FX[-1]
 snapped = []; steps_cut = []
 for s in B.get('sfx', []):
     t = when(s['ref']) + s.get('off', 0)
@@ -483,8 +499,11 @@ L = int(SR * (DUR + 1)); sfx = np.zeros(L, np.float32)
 for f in FX:
     a = max(0, int(f['t'] * SR)); e = min(L, a + len(f['x'])); sfx[a:e] += f['x'][:e - a]
 fs = wav('sfx', sfx)
-json.dump(sorted([dict(name=f['name'], t=round(f['t'], 3), src=f['src']) for f in FX], key=lambda p: p['t']), open(f'{OUT}/sfx_placed.json', 'w'))
+json.dump(sorted([dict(name=f['name'], t=round(f['t'], 3), src=f['src'], lib=f.get('lib', 'synth')) for f in FX], key=lambda p: p['t']), open(f'{OUT}/sfx_placed.json', 'w'))
 if not LEGACY: print(f'effects: {auth_n} authored, {len(snapped)} snapped to a cut, {len(auto_acc)} auto accents, foley {foley_n or "none"}' + (f', {len(steps_cut)} rate-based footsteps replaced' if steps_cut else ''))
+if USE_REAL:
+    _sf = sorted({f['name'] for f in FX if f.get('lib') == 'synth'})
+    if _sf: print(f'SYNTH_FALLBACK ({len(_sf)} name(s) not in audio_lib/catalog.json): {", ".join(_sf)}')
 for nm, t, t2 in snapped: print(f'  snap {nm}: {t:.3f} -> {t2:.3f} (cut)')
 for i, nm, t in auto_acc: print(f'  auto accent for impact {i}: {nm} at {t:.3f}')
 
@@ -685,7 +704,7 @@ else:
     P = dict(boost=1.5, slope=1.5, extra={})
     # ---- closed loop on check e: the build measures what the gate measures and bends the curve until the gate would pass ----
     gl_est = lambda mf, fxb: -13.5 - AG.gated(AG.power(vo + mf + fxb))
-    mdb = music_curve(P); loop_log = []
+    mdb = music_curve(P); loop_log = []; good = True
     for rnd in range(9):
         am, ae, first, mrg, nit = solve_duck(mdb)
         mf, fxb, cb = evaluate(mdb, am, ae)

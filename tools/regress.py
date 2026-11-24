@@ -13,8 +13,12 @@ EPS = {'episodes/ngay12.js': [0.6, 1.8, 10.4, 16.9, 25.5, 41.0, 52.0, 70.0], 'de
 # A check that fails MORE often than listed, or a check not listed, makes the QA part FAIL. Fix the episode and shrink the list; never grow it to make a regression pass.
 QA_KNOWN = {'episodes/ngay12.js': {'subject_cut': 1, 'hold_on_action': 3, 'same_framing': 1, 'draw_undeclared': 1}, 'episodes/gb04.js': {'text_fit': 1, 'hold_on_action': 2, 'draw_undeclared': 3},
             'demo/trada_ep55.js': {'text_on_speech': 1}, 'demo/trada_people.js': {'no_lips': 8}, 'demo/trada_phone.js': {'no_lips': 2, 'read_time': 3}, 'demo/goat_ep03.js': {'speaker_off': 1}}   # the demos are look tests with no recorded voice; 14/11 read checks: draw_undeclared = old draw inserts without `reads`/`noText` (ngay12, gb04), read_time = demo chat messages on screen too briefly
-save = '--save' in sys.argv; bad = 0
+# Public-clone extras (`--available`): skips missing private episodes (e.g. ngay12, gb04) and adds available repo samples so clean clones can verify 0 regressions.
+AVAIL_EXTRA = {'demo/trada_v2_widgets.js': [0.5, 5.8, 13.0], 'episodes/gb11.js': [0.6, 15.0, 52.0]}
+save = '--save' in sys.argv; avail = '--available' in sys.argv; bad = 0
 only = [x for x in sys.argv[1:] if not x.startswith('--')]   # `--save trada` or `regress.py goat`: only the episodes whose path contains one of these words (two agents, two packs: save only your own)
+if avail:
+    EPS = {k: v for k, v in {**EPS, **AVAIL_EXTRA}.items() if os.path.exists(os.path.join(ROOT, k))}
 if only: EPS = {k: v for k, v in EPS.items() if any(o in k for o in only)}
 for ep, ts in EPS.items():
     name = os.path.basename(ep)[:-3]; ref = f'{ROOT}/ref/{name}'; tmp = f'{ROOT}/out/_regress_{os.getpid()}/{name}'; shutil.rmtree(tmp, ignore_errors=True)

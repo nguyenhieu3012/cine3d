@@ -122,15 +122,19 @@ def run_motion(a, B, id, epj):
     for x in iv:
         x['file'] = f'out/{id}/animatic_work/stills/t{x["still"]:.2f}.png'
         run(['ffmpeg', '-y', '-loglevel', 'error', '-ss', f'{x["still"]:.3f}', '-i', f'{W}/raw.mp4', '-frames:v', '1', f'{ROOT}/{x["file"]}'])
-    # 6. labels (10 per second: timecode + shot id) and sheets, drawn in Chromium
-    LN = int(math.ceil(plan['dur'] * 10)) + 10; texts = []
-    for k in range(LN):
-        t = k / 10; i = shot_at(plan['shots'], t + 0.05); texts.append(f'{int(t // 60):02d}:{t % 60:04.1f}  S{i + 1:02d} {plan["shots"][i]["cam"]}')
+    # 6. labels (10 per second: timecode + shot id, ONLY when --timecode or --wide is requested) and sheets, drawn in Chromium
+    need_labels = bool(a.timecode or a.wide)
+    labels_spec = None
+    if need_labels:
+        LN = int(math.ceil(plan['dur'] * 10)) + 10; texts = []
+        for k in range(LN):
+            t = k / 10; i = shot_at(plan['shots'], t + 0.05); texts.append(f'{int(t // 60):02d}:{t % 60:04.1f}  S{i + 1:02d} {plan["shots"][i]["cam"]}')
+        labels_spec = dict(dir=f'out/{id}/animatic_work/labels', text=texts, w=560, h=56, font='bold 30px Menlo, monospace')
     sheets = []
     for n, i in enumerate(range(0, len(iv), 24)):
         items = [dict(src=x['file'], l1=f'#{i + j + 1:02d}  t {x["still"]:.2f}s  shot {x["shot"] + 1}', l2=f'{plan["shots"][x["shot"]]["cam"]}  {x["a"]:.2f}-{x["b"]:.2f}') for j, x in enumerate(iv[i:i + 24])]
         sheets.append(dict(out=f'out/{id}/animatic_sheet{"" if n == 0 else "_" + str(n + 1)}.jpg', cols=6, cw=300, ch=533, strip=60, items=items))
-    spec = dict(work=f'out/{id}/animatic_work', labels=dict(dir=f'out/{id}/animatic_work/labels', text=texts, w=560, h=56, font='bold 30px Menlo, monospace'), sheets=sheets)
+    spec = dict(work=f'out/{id}/animatic_work', labels=labels_spec, sheets=sheets)
     json.dump(spec, open(f'{W}/compose.json', 'w')); run(['node', 'tools/animatic.cjs', 'compose', f'out/{id}/animatic_work/compose.json'])
     # 7. burn the label in (label box 560x56 at x 60, y 160: inside the safe area x 54-1026, y 150-1536, above the hook zone y 260+)
     fc = ('[0:v]scale=608:1080,pad=1920:1080:656:0:color=black,setsar=1[a];[a][1:v]overlay=24:24:shortest=1[v]' if a.wide else '[0:v][1:v]overlay=60:160:shortest=1[v]')

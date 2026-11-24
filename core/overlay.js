@@ -26,8 +26,9 @@ export function chunks(line, max = 14) {
 }
 
 export function caption(ctx, ep, t, cast) {
-  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
-  const y = ep.captions?.y ?? (wide ? 940 : 1385), size = ep.captions?.size ?? (wide ? 68 : 76), maxW = wide ? 1560 : 900;
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, wide = CW > CH, v2Safe = !wide && (ep.rules >= 2);
+  const CX = ep.captions?.x ?? (v2Safe ? 472 : CW / 2);
+  const y = ep.captions?.y ?? (wide ? 940 : 1385), size = ep.captions?.size ?? (wide ? 68 : 76), maxW = ep.captions?.maxW ?? (wide ? 1560 : v2Safe ? 820 : 900);
   // one caption at a time: the newest line that has started wins, so two close lines never overlap
   const live = (ep.lines || []).filter((l) => !l.noCap && t >= l.t0 - 0.02 && t <= l.t1 + 0.2); const ln = live[live.length - 1]; if (!ln) return;
   {

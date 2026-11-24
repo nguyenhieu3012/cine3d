@@ -73,11 +73,38 @@ def animatic_owner_ok(id):
     except Exception: pass
     return True, 'ok'
 
+def credit_owner_ok(id):
+    """(ok, why). Gemini Studio 1A credit lock: owner approved voice credit spend after script_gate PASS (with --quote), and script text has not changed since."""
+    st = read_state(id)
+    if not st: return False, f'no out/{id}/pipeline.json (no record of any approval)'
+    rec = (st.get('records') or {}).get('credit_owner')
+    if not rec: return False, 'credit_owner is not recorded'
+    if rec.get('verdict') != 'OK': return False, f'credit_owner is {rec.get("verdict")}, not OK'
+    if not (rec.get('quote') or '').strip(): return False, 'the approval has no quote of the owner\'s words'
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import pipeline as P
+        cur = P.judged_hash(P.Ep(id).beats)
+        if not cur: return False, f'episodes/{id}.beats.json missing or invalid'
+        if rec.get('jhash') and rec['jhash'] != cur: return False, 'the script text changed after the owner approved voice credit'
+    except Exception: pass
+    return True, 'ok'
+
+def voice_unlocked(id):
+    """(ok, mode, why). Voice recording is unlocked if EITHER animatic_owner (Claude v2) OR credit_owner (Gemini 1A) is recorded with owner's words and matching script hash."""
+    ok_a, why_a = animatic_owner_ok(id)
+    if ok_a: return True, 'animatic_owner', 'ok'
+    ok_c, why_c = credit_owner_ok(id)
+    if ok_c: return True, 'credit_owner', 'ok'
+    st = read_state(id) or {}
+    if st.get('workflow') == 'gemini':
+        return False, 'credit_owner', why_c
+    return False, 'animatic_owner', why_a
+
 if __name__ == '__main__':
     if len(sys.argv) < 2: print(__doc__); sys.exit(2)
     i = sys.argv[1]; st = read_state(i); bp = f'{ROOT}/episodes/{i}.beats.json'
     try: B = json.load(open(bp, encoding='utf-8'))
     except Exception: B = None
-    v = rules_version(B, st, cli_rules()); ok, why = animatic_owner_ok(i)
-    print(f'{i}: rules {v}; animatic proof: {", ".join(os.path.relpath(f, ROOT) for f in animatic_files(i)) or "none"}; animatic_owner: {"DONE" if ok else why}')
-    sys.exit(0 if (v == 1 or ok) else 1)
+    v = rules_version(B, st, cli_rules()); ok, mode, why = voice_unlocked(i); wf = (st or {}).get('workflow') or 'claude'
+    print(f'{i}: rules {v} (workflow {wf}); animatic proof: {", ".join(os.path.relpath(f, ROOT) for f in animatic_files(i)) or "none"}; {mode}: {"DONE" if ok else why}')
+    sys.exit(0 if ((v == 1 and wf != 'gemini') or ok) else 1)
