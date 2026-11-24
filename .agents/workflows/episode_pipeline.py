@@ -83,12 +83,32 @@ def sh(cmd, timeout=600):
 def detect_channel(ep_id):
     if args.get("channel") in ("trada", "goat"):
         return args["channel"]
+    st = None
     st_p = os.path.join(ROOT, "out", ep_id, "pipeline.json")
     if os.path.exists(st_p):
         try:
-            ch = json.load(open(st_p, encoding="utf-8")).get("channel")
-            if ch in ("trada", "goat"):
-                return ch
+            st = json.load(open(st_p, encoding="utf-8"))
+            if st.get("channel") in ("trada", "goat"):
+                return st["channel"]
+        except Exception:
+            pass
+    beats_p = os.path.join(ROOT, "episodes", f"{ep_id}.beats.json")
+    if os.path.exists(beats_p):
+        try:
+            B = json.load(open(beats_p, encoding="utf-8"))
+            v = B.get("voices")
+            if B.get("pack") == "goat" or B.get("channel") == "goat" or (isinstance(v, dict) and "ron" in v):
+                return "goat"
+            if B.get("pack") == "trada" or B.get("channel") == "trada" or (isinstance(v, dict) and "teo" in v):
+                return "trada"
+        except Exception:
+            pass
+    ep_p = os.path.join(ROOT, "episodes", f"{ep_id}.js")
+    if os.path.exists(ep_p):
+        try:
+            txt = open(ep_p, encoding="utf-8").read(4000)
+            if "pack: 'goat'" in txt or 'pack: "goat"' in txt or "goatDefaults(" in txt:
+                return "goat"
         except Exception:
             pass
     return "trada"
@@ -103,9 +123,12 @@ def read_text(rel_path, max_chars=24000):
 
 
 def trada_gate_passed(res):
-    pts = {p["id"]: p for p in res.get("points", [])}
+    raw_pts = res.get("points", [])
+    if len(raw_pts) != 8 or {p.get("id") for p in raw_pts} != {1, 2, 3, 4, 5, 6, 7, 8}:
+        return False
+    pts = {p["id"]: p for p in raw_pts}
     mandatory_ok = all(pts.get(i, {}).get("pass") for i in (1, 2, 3, 8))
-    failed = [p for p in res.get("points", []) if not p.get("pass")]
+    failed = [p for p in raw_pts if not p.get("pass")]
     block_ok = all(res.get("blocking_checks", {}).values())
     if not (mandatory_ok and block_ok):
         return False
@@ -114,6 +137,23 @@ def trada_gate_passed(res):
     if len(failed) == 1 and not failed[0].get("affects_logic_or_comedy", True):
         return True
     return False
+
+
+def goat_facts_passed(res, expected_count):
+    if expected_count == 0:
+        return True
+    claims = res.get("claims") or []
+    return (
+        res.get("verdict") == "GO"
+        and len(claims) >= expected_count
+        and all(
+            bool(c.get("accurate"))
+            and bool(c.get("verified_live"))
+            and isinstance(c.get("sources"), list)
+            and len([s for s in c["sources"] if str(s).strip()]) >= 1
+            for c in claims
+        )
+    )
 
 
 def goat_gate_passed(res):
@@ -139,6 +179,7 @@ def episode_gate_passed(res):
         res.get("verdict") == "PASS"
         and bool(res.get("watched_proxy"))
         and len(doors) == 6
+        and {d.get("door") for d in doors} == {1, 2, 3, 4, 5, 6}
         and all(d.get("pass") for d in doors)
         and bool(au.get("voice_clear_over_music"))
         and bool(au.get("lip_sync_ok"))
@@ -173,7 +214,7 @@ async def stage_script_gate(ep_id, ch):
     phase(f"2. Blind Script Gate ({ch}, model=pro)")
     spec_text = read_text(f".agents/skills/gemini-studio/specs/{ch}.md")
     beats_raw = json.load(open(os.path.join(ROOT, beats_rel), encoding="utf-8"))
-    # Strip any logline/meta summary for genuine blind Stranger Test
+    # Strip any logline/meta summary for genuine blind Stranger Test (keep header cards so gate sees screen text)
     blind_beats = {
         "id": beats_raw.get("id"),
         "hook": beats_raw.get("hook"),
@@ -182,11 +223,14 @@ async def stage_script_gate(ep_id, ch):
             for b in beats_raw.get("beats", [])
         ],
     }
+    if beats_raw.get("cards"):
+        blind_beats["cards"] = beats_raw["cards"]
     blind_json = json.dumps(blind_beats, ensure_ascii=False, indent=1)
 
     if ch == "trada":
         prompt = (
             f"Blind Script Gate (8-point Trà đá Blueprint v2.0) for `{ep_id}`.\n"
+            "READ-ONLY GATE: do NOT create, edit, or delete any files.\n"
             "DO NOT read treatment.md or card.json — judge strictly from the raw script below for a true Stranger Test.\n"
             "Also audit Vietnamese Hanoi Tèo-Bíp dialogue naturalness (flag stiff/preachy/AI-sounding phrasing).\n\n"
             f"=== CHANNEL SPEC ===\n{spec_text}\n\n"
@@ -201,6 +245,7 @@ async def stage_script_gate(ep_id, ch):
         facts = card.get("facts") or []
         cold_prompt = (
             f"Blind GOAT Beef Cold-Reader Gate for `{ep_id}`.\n"
+            "READ-ONLY GATE: do NOT create, edit, or delete any files.\n"
             "Judge strictly as a US 16-30 soccer/football viewer scrolling Reels/Shorts. Simulate 3 comments (Ronaldo fan, Messi fan, neutral US).\n\n"
             f"=== CHANNEL SPEC ===\n{spec_text}\n\n"
             f"=== RAW SCRIPT ===\n{blind_json}\n"
@@ -209,7 +254,10 @@ async def stage_script_gate(ep_id, ch):
         if facts:
             fact_prompt = (
                 f"GOAT Beef Fact-Checker for `{ep_id}`.\n"
-                "Verify every football/soccer claim listed below. Return GO only if all factual claims are accurate and fair.\n\n"
+                "READ-ONLY GATE: do NOT create, edit, or delete any files.\n"
+                "MANDATORY LIVE VERIFICATION: Use `search_web` (up to 20 queries max) to verify EVERY mutable football/soccer stat, score, date, record, standing, or quote below.\n"
+                "Cite at least 2 independent sources (URLs or official stat providers) per mutable number in `sources` and set `verified_live: true` ONLY when checked live.\n"
+                "NEVER rely on memory for changing career totals or recent events; if any claim cannot be verified live, set `accurate: false` and `verdict: NOGO`.\n\n"
                 f"CLAIMS:\n{json.dumps(facts, ensure_ascii=False, indent=1)}\n\n"
                 f"SCRIPT CONTEXT:\n{blind_json}\n"
             )
@@ -217,7 +265,9 @@ async def stage_script_gate(ep_id, ch):
         results = await parallel(tasks, lambda t: agent(t[1], schema=t[2], role=t[3], model="pro"))
         gate_res = results[0]
         facts_res = results[1] if len(results) > 1 else {"verdict": "GO", "claims": [], "summary": "No factual claims on card."}
-        passed = goat_gate_passed(gate_res) and (facts_res.get("verdict") == "GO")
+        facts_ok = goat_facts_passed(facts_res, len(facts))
+        facts_res["verdict"] = "GO" if facts_ok else "NOGO"
+        passed = goat_gate_passed(gate_res) and facts_ok
         gate_res["verdict"] = "PASS" if goat_gate_passed(gate_res) else "FAIL"
 
     phase("3. Voice Credit Quote (0 token, NO ElevenLabs spend)")
@@ -283,26 +333,49 @@ async def stage_build_and_gate(ep_id, ch):
     beats_rel = f"episodes/{ep_id}.beats.json"
     times_rel = f"episodes/{ep_id}.times.js"
     treat_rel = f"episodes/{ep_id}.treatment.md"
+    mix_abs = os.path.join(ROOT, "out", ep_id, "audio", "mix.wav")
     max_rounds = min(3, max(1, int(args.get("max_build_rounds", 3))))
 
-    phase("1. 3D Episode Build (stateful flash, max 3 batched rounds)")
+    # Preflight: fail fast before spending any builder tokens if real audio/times are missing
+    if not os.path.exists(os.path.join(ROOT, beats_rel)):
+        raise FileNotFoundError(f"Missing {beats_rel}")
+    if not os.path.exists(os.path.join(ROOT, times_rel)):
+        raise FileNotFoundError(f"Missing {times_rel} — run stage='audio' first so builder works on REAL voice times.")
+    if '"estimated": true' in read_text(times_rel, 4000) or '"estimated":true' in read_text(times_rel, 4000):
+        raise RuntimeError(f"{times_rel} is still ESTIMATED — run stage='audio' after voice recording before stage='build_and_gate'.")
+    if not os.path.exists(mix_abs):
+        raise FileNotFoundError(f"Missing {mix_abs} — run stage='audio' before final render.")
+
+    phase("1. 3D Episode Build (stateful flash, pre-injected context, max 3 batched rounds)")
+    core_doc = read_text(".agents/skills/gemini-studio/ENGINE-CORE.md", 16000)
+    spec_doc = read_text(f".agents/skills/gemini-studio/specs/{ch}.md", 12000)
+    treat_doc = read_text(treat_rel, 12000)
+    beats_doc = read_text(beats_rel, 16000)
+    times_doc = read_text(times_rel, 12000)
+    existing_ep = read_text(ep_rel, 24000)
+
     standing = (
         f"You are the Gemini Studio 3D Builder for cine3d (`{ep_id}`, channel `{ch}`).\n"
         f"Workspace root: {ROOT}\n"
-        "STRICT CONTEXT RULES:\n"
-        "- Read ONLY `.agents/skills/gemini-studio/ENGINE-CORE.md` and `.agents/skills/gemini-studio/specs/" + ch + ".md`.\n"
-        "- Do NOT read `ENGINE.md` (164 KB); only check `.agents/skills/gemini-studio/ENGINE-INDEX.md` if you need a rare set.\n"
+        "STRICT CONTEXT & SPEED RULES:\n"
+        "- All core docs (ENGINE-CORE + channel spec) are ALREADY injected below — do NOT waste turns re-reading them or reading `ENGINE.md` (164 KB).\n"
+        "- Only check `.agents/skills/gemini-studio/ENGINE-INDEX.md` if you need a rare set (GTA/Zombie/chest/setswap).\n"
         "- Prefer `core/ep_kit.js` (`makeKit`, `v2Defaults`/`goatDefaults`, `v2Hook`) so shots tile cleanly with zero gaps.\n"
         "- NEVER run `voice.py record` or touch `.claude/`.\n"
-        "- Fix ALL reported QA/clip errors together in ONE batched edit per round — never chase one error at a time.\n"
+        "- Fix ALL reported QA/clip errors together in ONE batched edit per round — never chase one error at a time.\n\n"
+        f"=== ENGINE-CORE.md ===\n{core_doc}\n\n"
+        f"=== CHANNEL SPEC ({ch}) ===\n{spec_doc}\n"
     )
     builder = agent(standing, role=f"3D Builder ({ep_id})", model="flash")
 
     build_prompt = (
-        f"Build or update `{ep_rel}` (and `episodes/{ep_id}_props.js` only if custom 3D props are needed) on REAL times.\n"
-        f"Read: `{treat_rel}`, `{beats_rel}`, `{times_rel}`, `.agents/skills/gemini-studio/ENGINE-CORE.md`, `.agents/skills/gemini-studio/specs/{ch}.md`.\n"
-        f"If `{ep_rel}` already exists, polish it instead of rewriting from scratch.\n"
-        "Do NOT run QA yourself — the workflow runs `tools/build_check.py` deterministically right after you finish.\n"
+        f"Write or update `{os.path.join(ROOT, ep_rel)}` (and `episodes/{ep_id}_props.js` ONLY if custom 3D props are needed) on REAL times in ONE pass.\n"
+        "All input files are pre-injected below — write the file directly without wasting tool calls re-reading them.\n"
+        "Do NOT run QA yourself — the workflow runs `tools/build_check.py` deterministically right after you finish.\n\n"
+        f"=== {treat_rel} ===\n{treat_doc or '(none)'}\n\n"
+        f"=== {beats_rel} ===\n{beats_doc}\n\n"
+        f"=== {times_rel} ===\n{times_doc}\n"
+        + (f"\n=== EXISTING {ep_rel} (polish instead of rewriting from scratch) ===\n{existing_ep}\n" if existing_ep else "")
     )
 
     pic_ok = False
@@ -337,7 +410,7 @@ async def stage_build_and_gate(ep_id, ch):
         return
 
     def run_final_render():
-        cmd = [sys.executable or "python3", "tools/build_check.py", ep_rel, "--final"]
+        cmd = [sys.executable or "python3", "tools/build_check.py", ep_rel, "--final", "--reuse-check"]
         if args.get("cover_t") is not None and args.get("cover_top") and args.get("cover_plate"):
             cmd += ["--cover-t", str(args["cover_t"]), "--cover-top", str(args["cover_top"]), "--cover-plate", str(args["cover_plate"])]
         return sh(cmd, timeout=900)
@@ -355,18 +428,25 @@ async def stage_build_and_gate(ep_id, ch):
     mp4_rel = f"out/{ep_id}/{ep_id}.mp4"
 
     phase("3. Blind Multimodal Episode Gate (pro watches + listens to review_proxy.mp4)")
+    bc_text = read_text(f"out/{ep_id}/build_check.json", 12000)
     rev_standing = (
         f"You are the independent Blind Episode Gate Reviewer for cine3d (`{ep_id}`, channel `{ch}`).\n"
-        "You MUST call `read_file` directly on the rendered video proxy to watch real motion AND hear real voice/SFX/music.\n"
-        f"Read `.agents/skills/gemini-studio/specs/{ch}.md` and `{bc_abs}`.\n"
-        "Judge ALL 6 doors strictly with concrete timestamps and evidence. If FAIL, provide ONE consolidated fix_list with exact parameter/timing fixes.\n"
+        "READ-ONLY GATE: do NOT create, edit, or delete any files.\n"
+        "TWO-STEP SINGLE-PASS AUDIT (do NOT waste turns re-reading spec/beats — they are pre-injected below):\n"
+        "  1. Call `read_file` on `review_proxy.mp4` FIRST to watch real motion AND hear real voice/SFX/music cold.\n"
+        "  2. Cross-check what you saw & heard against the pre-injected channel spec, machine report, and beats below.\n"
+        "Judge ALL 6 doors strictly with concrete timestamps and evidence. If FAIL, provide ONE consolidated fix_list with exact parameter/timing fixes.\n\n"
+        f"=== CHANNEL SPEC ({ch}) ===\n{spec_doc}\n\n"
+        f"=== SCRIPT BEATS (for post-watch cross-check of missing lines/gags) ===\n{beats_doc}\n"
     )
     reviewer = agent(rev_standing, role=f"Blind Episode Gate ({ep_id})", model="pro")
     gate_res = await reviewer(
-        f"Watch and listen to `{proxy_abs}` via `read_file`, inspect `{bc_abs}`, and return the 6-door verdict.",
+        f"Watch and listen to `{proxy_abs}` via `read_file` now, then cross-check with the machine report below and return the 6-door verdict.\n\n"
+        f"=== build_check.json ===\n{bc_text}\n",
         SCHEMAS.EPISODE_GATE_SCHEMA,
     )
     gate_ok = episode_gate_passed(gate_res)
+    render_fresh = True
     log(f"Episode Gate round 1: pass={gate_ok}, summary={gate_res.get('summary', '')[:120]}")
 
     # At most 1 consolidated post-gate fix pass on the same stateful builder + targeted re-check
@@ -378,6 +458,7 @@ async def stage_build_and_gate(ep_id, ch):
             f"Apply ALL fixes below cleanly to `{ep_rel}`:\n\n{fix_json}\n",
             SCHEMAS.BUILDER_RESULT_SCHEMA,
         )
+        render_fresh = False
         rc_c2, out_c2 = sh([sys.executable or "python3", "tools/build_check.py", ep_rel], timeout=360)
         if rc_c2 != 0:
             # 1 emergency QA repair pass so we never render broken QA
@@ -387,17 +468,23 @@ async def stage_build_and_gate(ep_id, ch):
             rc_f, out_f = run_final_render()
             log(out_f)
             if rc_f == 0:
+                render_fresh = True
+                bc_text2 = read_text(f"out/{ep_id}/build_check.json", 12000)
                 gate_res = await reviewer(
-                    f"Re-watch `{proxy_abs}` via `read_file` specifically verifying every timestamp in your previous fix_list was resolved without regressions.",
+                    f"Re-watch `{proxy_abs}` via `read_file` specifically verifying every timestamp in your previous fix_list was resolved without regressions.\n\n=== UPDATED build_check.json ===\n{bc_text2}\n",
                     SCHEMAS.EPISODE_GATE_SCHEMA,
                 )
                 gate_ok = episode_gate_passed(gate_res)
                 log(f"Episode Gate round 2: pass={gate_ok}")
+            else:
+                log("Post-gate re-render FAILED; skipping stale pipeline record.")
+        else:
+            log(f"Post-gate build_check FAILED; skipping stale render & pipeline record:\n{out_c2}")
 
     del builder
     del reviewer
 
-    if os.path.exists(os.path.join(ROOT, "out", ep_id, "pipeline.json")) and os.path.exists(os.path.join(ROOT, mp4_rel)):
+    if render_fresh and os.path.exists(os.path.join(ROOT, "out", ep_id, "pipeline.json")) and os.path.exists(os.path.join(ROOT, mp4_rel)):
         sh([sys.executable or "python3", "tools/pipeline.py", "status", ep_id, "--run"], timeout=120)
         sh([sys.executable or "python3", "tools/pipeline.py", "record", ep_id, "render", "OK", "--by", "gemini-workflow", "--mp4", mp4_rel], timeout=30)
         sh([sys.executable or "python3", "tools/pipeline.py", "status", ep_id, "--run"], timeout=180)
@@ -406,14 +493,15 @@ async def stage_build_and_gate(ep_id, ch):
     print(json.dumps({
         "stage": "build_and_gate",
         "episode_id": ep_id,
-        "pass": gate_ok,
+        "pass": bool(render_fresh and gate_ok),
+        "render_fresh": render_fresh,
         "final_mp4": os.path.join(ROOT, mp4_rel),
         "review_proxy": proxy_abs,
         "episode_gate": gate_res,
         "next_action": (
             f'Main (Gemini 4 Neon High): call read_file("{proxy_abs}") to watch+listen final 6 doors, record driver_review OK, then deliver Final MP4 to owner.'
-            if gate_ok
-            else "Inspect episode_gate.fix_list and decide next creative/technical adjustment."
+            if (render_fresh and gate_ok)
+            else "Post-gate fix/render did not pass — inspect logs and episode_gate.fix_list before re-running."
         ),
     }, ensure_ascii=False, indent=1))
 

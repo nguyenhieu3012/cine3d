@@ -117,9 +117,15 @@ FACT_CHECK_GOAT_SCHEMA = {
                 "properties": {
                     "claim": {"type": "string"},
                     "accurate": {"type": "boolean"},
+                    "verified_live": {"type": "boolean", "description": "True if verified via live web search (not memory alone)."},
+                    "sources": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Independent source URLs or official publications checked (aim for >= 2 per mutable stat).",
+                    },
                     "note": {"type": "string"},
                 },
-                "required": ["claim", "accurate", "note"],
+                "required": ["claim", "accurate", "verified_live", "sources", "note"],
             },
         },
         "summary": {"type": "string"},

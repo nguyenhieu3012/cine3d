@@ -62,7 +62,7 @@ Every spoken line MUST have an `emo` matching its beat's `mood` (`qa.cjs` checks
   - Line flags: `noCap: true` (suppress subtitle when big phone card is up), `think: true` (thought/inner voice).
 
 ## 4. Overlays (`core/overlay_v2.js` + `core/overlay.js`)
-**Safe zones (9:16 v2):** keep widgets centered around `x: 472` (`x 54..890`, strictly clear of right platform UI `x > 900`), `y 224..1220` (above captions at `y: 1385`, clear of bottom UI `y > 1536`). Captions in `rules: 2` auto-shift to `x: 472, maxW: 820`.
+**Safe zones (9:16 v2):** keep widgets centered around `x: 472` (`x 54..890`, strictly clear of right platform UI `x > 900`), `y 224..1220` (above captions at `y: 1385`, clear of bottom UI `y > 1536`). Captions in `rules: 2` stay centered at `x: 540` with auto-capped `maxW: 710` (`x 185..895 < 900`; override via `captions: { x, maxW }` if needed).
 - **Blueprint v2 Floating Widgets (`core/overlay_v2.js` — `backdrop: false` by default, zero blur over cast):**
   - `chatStrip`: `{ kind:'chatStrip', t0, t1, sender, sub?, avatar:'mum'|'gpt'|'bank'|'letter', accent, y:345, maxShow:2, msgs:[{ t, from:'them'|'me', text }] }` (≤ 8 words/msg, 1.8–2.5 s each, 1 msg at a time!)
   - `callCard`: `{ kind:'callCard', t0, t1, mode:'outgoing'|'busy'|'incoming'|'live', name, who?, busyAt?, busyText?:'Máy bận!', answer?, avatar:'mum', y:320 }` (`outgoing`/`busy` draw red hang-up button ONLY)
@@ -79,7 +79,7 @@ Every spoken line MUST have an `emo` matching its beat's `mood` (`qa.cjs` checks
 ## 5. Contact, Walking, Reads & Machine-Check Guardrails
 - **Hand Contact:** `ep.touch = [{ who, hand:'R'|'L', t0, t1, at:[x,y,z]|fn, n:[0,1,0], r:0.044, ramp:0.25 }]` (Tèo & `makePerson`, not Bíp). Declare prop contact check via `ep.touchProps = [{ who, hand:'L'|'R'|'any', prop:'<meshName>', t0, t1 }]`.
 - **3D Text Props:** declare `ep.reads = [{ text:'...', t0, t1 }]` (or `prop:'<meshName>'`); must be unblocked ≥ 90% and held `>= 1.0 + chars/12` s.
-- **Waivers (`ep.waive`):** ONLY when genuinely intentional. Max span **≤ 25%** of duration, MUST include `reason`, MUST name object (`who`/`obj` or `"Object: ..."` in reason — except episode-level checks `tail/length/shot_rhythm/first_3s/static_shot/static_two`). Never use blanket `check: 'clip'`.
+- **Waivers (`ep.waive`):** ONLY when genuinely intentional. Max span **≤ 25%** of duration, MUST include `reason`, MUST name object (`who`/`obj` or `"Object: ..."` in reason — except episode-level checks `tail/length/shot_rhythm/first_3s`). Never use blanket `check: 'clip'`.
 - **QA v2 Hard Numbers:**
   - `dur`: 42–52 s (target 42–48 s) · `tail <= 0.85 s` (v1: `<= 2.05 s`)
   - First 12 s avg shot: `1.8–2.4 s`, no static shot `> 2.8 s`, no static `two` `> 2.5 s`

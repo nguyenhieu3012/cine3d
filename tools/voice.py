@@ -252,10 +252,11 @@ def wav(name, x, ch=1):
 for w, x in stems.items(): wav(f'vo_{w}', x)
 vo = sum(stems.values()); wav('vo_all', vo)
 
-# ---- sound effects (real CC0 library for v2 / sfxMode:"real", plus synthesised fallbacks, seeded) ----
+# ---- sound effects (real CC0 library for v2, non-legacy GOAT, or sfxMode:"real", plus synthesised fallbacks, seeded) ----
 import rules2 as _r2_mod
-_RV = _r2_mod.rules_version(B, _r2_mod.read_state(ID))
-USE_REAL = (B.get('sfxMode') == 'real') or (B.get('sfxMode') != 'synth' and _RV == 2)
+_st_v = _r2_mod.read_state(ID)
+_RV = _r2_mod.rules_version(B, _st_v)
+USE_REAL = (B.get('sfxMode') == 'real') or (not LEGACY and B.get('sfxMode') != 'synth' and (_RV == 2 or _r2_mod.is_goat(B, _st_v)))
 SYNTH_BUILTINS = {
     'riser', 'bloom', 'hum', 'pop', 'ting', 'kaching', 'buzz', 'ring', 'fizz', 'zap',
     'thud', 'whoosh', 'slide', 'clink', 'lock', 'chime', 'click', 'whirr', 'cheer',
@@ -501,6 +502,8 @@ for f in FX:
 fs = wav('sfx', sfx)
 json.dump(sorted([dict(name=f['name'], t=round(f['t'], 3), src=f['src'], lib=f.get('lib', 'synth')) for f in FX], key=lambda p: p['t']), open(f'{OUT}/sfx_placed.json', 'w'))
 if not LEGACY: print(f'effects: {auth_n} authored, {len(snapped)} snapped to a cut, {len(auto_acc)} auto accents, foley {foley_n or "none"}' + (f', {len(steps_cut)} rate-based footsteps replaced' if steps_cut else ''))
+_real_n = sum(1 for f in FX if f.get('lib') == 'real'); _synth_n = len(FX) - _real_n
+if FX: print(f'sfx library: {_real_n} real / {_synth_n} synth' + (' (real mode)' if USE_REAL else ' (synth mode)'))
 if USE_REAL:
     _sf = sorted({f['name'] for f in FX if f.get('lib') == 'synth'})
     if _sf: print(f'SYNTH_FALLBACK ({len(_sf)} name(s) not in audio_lib/catalog.json): {", ".join(_sf)}')

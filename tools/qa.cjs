@@ -49,7 +49,7 @@ const OCC_EXEMPT = new Set([...ENGINE_PANELS, 'draw']), PANEL_W = 640, PANEL_H =
   const V2 = Number(flag('rules', hdr0.rules ?? ep.rules ?? 1)) === 2 && (ep.pack ?? hdr0.pack) !== 'goat' && !WIDE, wc = (x) => String(x).trim().split(/\s+/).filter(Boolean).length, bigCard = (t) => ep.overlays.some((o) => o.kind === 'phone' && o.big && t >= o.t0 - 0.01 && t <= o.t1 + 0.01);
   // ---- v5 (22/11) "checks 2" (same switch as clipcheck.cjs: every episode except LEGACY, or `checks: 2`): a waiver wider than 25 % of the film, without a reason or without a named object is NOT applied and FAILS (clip.* waivers are judged by clipcheck.cjs) ----
   const LEGACY = new Set(['gta6', 'gta6p2', 'gta6p2b', 'gta6p3', 'gta6p3b']), EPID = path.basename(args[0], '.js'), NEWQ = ep.checks >= 2 || (ep.checks === undefined && !LEGACY.has(EPID));
-  const EP_LEVEL_CHECKS = new Set(['tail', 'length', 'shot_rhythm', 'first_3s', 'static_shot', 'static_two']);
+  const EP_LEVEL_CHECKS = new Set(['tail', 'length', 'shot_rhythm', 'first_3s']);
   const nrm = (x) => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase(), castN = Object.keys(ep.cast);
   const wProblem = (w) => { const t0 = Math.max(0, w.t0), t1 = Math.min(ep.dur, w.t1), span = Math.max(0, t1 - t0), why = [], r = nrm(w.hasReason ? w.reason : '');
     if (span > 0.25 * ep.dur) why.push(`covers ${(span / ep.dur * 100).toFixed(0)} % of the film (${span.toFixed(1)} of ${ep.dur.toFixed(1)} s; most 25 %)`); if (!w.hasReason) why.push('no reason given');

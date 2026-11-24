@@ -23,7 +23,7 @@
    - Must predict **swipe second > 6 s** and **first laugh < 6 s**.
    - Simulates 3 real viewer comments (**Ronaldo fan**, **Messi fan**, **neutral US scroller**): passes ONLY if **≥ 2 would genuinely comment** and the two fans disagree!
 2. **Fact-Checker (`FACT_CHECK_GOAT_SCHEMA`):**
-   - Verifies every claim in `card.facts` (GO / NOGO). Automatically skipped only if `card.facts == []`.
+   - MUST verify every mutable claim in `card.facts` live via `search_web` (up to 20 queries, citing ≥ 2 independent sources per number when available; never trust memory). Returns `GO` only if all claims are accurate and live-sourced. Automatically skipped only if `card.facts == []`.
 
 ## 4. Final Episode Gate (`review_proxy.mp4` 6-Door Check)
 - **Door 1:** Hook + claim clear in < 2 s, visual gag in opening shot, zero dead air in first 10 s.

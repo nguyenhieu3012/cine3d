@@ -13,7 +13,9 @@ Modes:
       Renders targeted 1080p stills at specific timestamps into out/<id>/spot/t*.png.
 Python 3.9+ stdlib only."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import glob
+import hashlib
 import json
 import os
 import re
@@ -88,6 +90,21 @@ def detect_rules(ep_id, beats_path, cli_rules):
         return '1'
 
 
+def first_err_line(out):
+    lines = [l.strip() for l in (out or '').splitlines() if l.strip()]
+    for l in lines:
+        if re.search(r'(?:Error:|TypeError:|SyntaxError:|ReferenceError:|ENOENT|Cannot find module|ERR_)', l):
+            return l[:160]
+    return (lines[-1] if lines else 'unknown error')[:160]
+
+
+def parse_rate(val):
+    if val and '/' in str(val):
+        a, b = str(val).split('/', 1)
+        return round(float(a) / float(b), 2) if float(b) else 0.0
+    return None
+
+
 def probe_media(path):
     if not os.path.exists(path):
         return None
@@ -99,10 +116,8 @@ def probe_media(path):
         fmt = d.get('format', {})
         vs = next((s for s in d.get('streams', []) if s.get('codec_type') == 'video'), None)
         aus = next((s for s in d.get('streams', []) if s.get('codec_type') == 'audio'), None)
-        fps = None
-        if vs and vs.get('avg_frame_rate') and '/' in vs['avg_frame_rate']:
-            a, b = vs['avg_frame_rate'].split('/')
-            fps = round(float(a) / float(b), 2) if float(b) else 0.0
+        fps = parse_rate(vs.get('avg_frame_rate')) if vs else None
+        r_fps = parse_rate(vs.get('r_frame_rate')) if vs else None
         return {
             'path': rel(path),
             'size_mb': round(int(fmt.get('size', 0)) / (1024 * 1024), 2),
@@ -111,6 +126,7 @@ def probe_media(path):
             'w': vs.get('width') if vs else None,
             'h': vs.get('height') if vs else None,
             'fps': fps,
+            'r_fps': r_fps,
             'audio': f"{aus.get('codec_name')}@{aus.get('sample_rate')}Hz" if aus else 'none',
         }
     except Exception:
@@ -162,6 +178,28 @@ def auto_lips(ep_path, ep_id, skip_lips=False):
     return f'rebuilt ({out.strip()}, {dt}s)' if rc == 0 else f'ERROR (rc={rc}): {out.strip()[:120]}'
 
 
+def _sha_file(path):
+    if not path or not os.path.exists(path):
+        return None
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(1 << 20), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def pic_input_sig(ep_path, beats_path, ep_id, rules, skip_clip=False):
+    lips_p = os.path.join(ROOT, 'episodes', f'{ep_id}_lips.json')
+    raw = json.dumps({
+        'ep': _sha_file(ep_path),
+        'beats': _sha_file(beats_path),
+        'lips': _sha_file(lips_p),
+        'rules': int(rules),
+        'skip_clip': bool(skip_clip),
+    }, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
 def run_picture_checks(ep_path, ep_id, beats_path, rules, skip_lips=False, skip_clip=False):
     out_dir = os.path.join(ROOT, 'out', ep_id)
     os.makedirs(out_dir, exist_ok=True)
@@ -174,18 +212,27 @@ def run_picture_checks(ep_path, ep_id, beats_path, rules, skip_lips=False, skip_
         qa_cmd += ['--beats', rel(beats_path)]
     if str(rules) == '2':
         qa_cmd += ['--rules', '2']
-    qa_rc, qa_out, qa_dt = run_cmd(qa_cmd, timeout=300)
-    qa_data = json.load(open(qa_json, encoding='utf-8')) if os.path.exists(qa_json) else {'pass': False, 'fails': [f'qa crashed rc={qa_rc}: {qa_out.strip()[-160:]}'], 'counts': {}, 'waived': [], 'warns': []}
+    clip_cmd = ['node', 'tools/clipcheck.cjs', rel(ep_path), '--stills', '3', '--json', rel(clip_json)]
+
+    if skip_clip:
+        qa_rc, qa_out, qa_dt = run_cmd(qa_cmd, timeout=300)
+        clip_rc, clip_out, clip_dt = 0, '', 0.0
+    else:
+        # Run qa.cjs and clipcheck.cjs in parallel (independent Chromium instances, ~25-30% faster)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_qa = pool.submit(run_cmd, qa_cmd, 300)
+            f_cl = pool.submit(run_cmd, clip_cmd, 300)
+            qa_rc, qa_out, qa_dt = f_qa.result()
+            clip_rc, clip_out, clip_dt = f_cl.result()
+
+    qa_data = json.load(open(qa_json, encoding='utf-8')) if os.path.exists(qa_json) else {'pass': False, 'fails': [f'qa crashed rc={qa_rc}: {first_err_line(qa_out)}'], 'counts': {}, 'waived': [], 'warns': []}
 
     clip_data = None
-    clip_dt = 0.0
     if not skip_clip:
-        clip_cmd = ['node', 'tools/clipcheck.cjs', rel(ep_path), '--stills', '3', '--json', rel(clip_json)]
-        clip_rc, clip_out, clip_dt = run_cmd(clip_cmd, timeout=300)
         if os.path.exists(clip_json):
             clip_data = json.load(open(clip_json, encoding='utf-8'))
         else:
-            clip_data = {'pass': clip_rc == 0, 'fails': [] if clip_rc == 0 else [f'clipcheck rc={clip_rc}: {clip_out.strip()[-160:]}'], 'counts': {}, 'waived': []}
+            clip_data = {'pass': clip_rc == 0, 'fails': [] if clip_rc == 0 else [f'clipcheck rc={clip_rc}: {first_err_line(clip_out)}'], 'counts': {}, 'waived': []}
 
     qa_fails = qa_data.get('fails', [])
     clip_fails = []
@@ -206,6 +253,7 @@ def run_picture_checks(ep_path, ep_id, beats_path, rules, skip_lips=False, skip_
     ok = bool(qa_data.get('pass')) and (True if skip_clip else bool(clip_data.get('pass', len(clip_fails) == 0)))
     summary = {
         'id': ep_id, 'ep': rel(ep_path), 'rules': int(rules), 'pass': ok,
+        'input_sig': pic_input_sig(ep_path, beats_path, ep_id, rules, skip_clip=skip_clip),
         'lips': lips_msg, 'qa_s': qa_dt, 'clip_s': clip_dt,
         'qa_fail_count': len(qa_fails), 'qa_counts': qa_data.get('counts', {}), 'qa_fails': qa_fails,
         'qa_waived': len(qa_data.get('waived', [])), 'qa_warns': len(qa_data.get('warns', [])),
@@ -277,32 +325,39 @@ def mode_audio(a):
     for fl in sl_fails:
         lines.append(f'    {fl[:145]}')
 
-    # Check synth fallbacks from sfx_placed.json
+    # Check synth fallbacks from sfx_placed.json (voice.py writes key `name`; keep `sfx` fallback for compat)
     sfx_p = os.path.join(audio_dir, 'sfx_placed.json')
     synth_names = []
     total_sfx = 0
+    real_sfx = 0
+    synth_sfx = 0
     if os.path.exists(sfx_p):
         try:
             fx_list = json.load(open(sfx_p, encoding='utf-8'))
             total_sfx = len(fx_list)
-            synth_names = sorted({x.get('sfx') for x in fx_list if x.get('lib') == 'synth' and x.get('sfx')})
+            real_sfx = sum(1 for x in fx_list if x.get('lib') == 'real')
+            synth_sfx = total_sfx - real_sfx
+            synth_names = sorted({(x.get('name') or x.get('sfx')) for x in fx_list if x.get('lib') == 'synth' and (x.get('name') or x.get('sfx'))})
         except Exception:
             pass
     report['sfx_total'] = total_sfx
+    report['sfx_real'] = real_sfx
+    report['sfx_synth'] = synth_sfx
     report['synth_fallbacks'] = synth_names
     if synth_names:
-        lines.append(f'  [SFX] WARN SYNTH_FALLBACK ({len(synth_names)}/{total_sfx}): {", ".join(synth_names)}')
+        lines.append(f'  [SFX] WARN SYNTH_FALLBACK ({real_sfx} real / {synth_sfx} synth, {len(synth_names)} name(s)): {", ".join(synth_names)}')
     else:
-        lines.append(f'  [SFX] OK ({total_sfx} placed, 0 synth fallback)')
+        lines.append(f'  [SFX] OK ({real_sfx}/{total_sfx} real, 0 synth fallback)')
 
-    # Encode compact listening preview for Gemini multimodal read_file
+    # Encode compact listening preview for Gemini multimodal read_file (only if mix is fresh/valid)
     mix_wav = os.path.join(audio_dir, 'mix.wav')
     preview_path = os.path.join(audio_dir, 'mix_preview.mp3')
-    if os.path.exists(mix_wav):
-        rc_mp3, _, _ = run_cmd(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', mix_wav, '-c:a', 'libmp3lame', '-b:a', '96k', '-ar', '48000', preview_path], timeout=60)
+    voice_built_ok = a.skip_build or (report.get('voice_build', {}).get('rc') == 0)
+    if voice_built_ok and os.path.exists(mix_wav):
+        rc_mp3, _, _ = run_cmd(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', mix_wav, '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '64k', '-ar', '48000', preview_path], timeout=60)
         if rc_mp3 != 0:
             preview_path = os.path.join(audio_dir, 'mix_preview.m4a')
-            run_cmd(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', mix_wav, '-c:a', 'aac', '-b:a', '96k', '-ar', '48000', preview_path], timeout=60)
+            run_cmd(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', mix_wav, '-ac', '1', '-c:a', 'aac', '-b:a', '64k', '-ar', '48000', preview_path], timeout=60)
         if os.path.exists(preview_path):
             kb = round(os.path.getsize(preview_path) / 1024, 1)
             report['mix_preview'] = rel(preview_path)
@@ -374,7 +429,22 @@ def mode_final(a):
     out_dir = os.path.join(ROOT, 'out', ep_id)
     os.makedirs(out_dir, exist_ok=True)
 
-    pic = run_picture_checks(ep_path, ep_id, beats_path, rules, skip_lips=a.skip_lips, skip_clip=a.skip_clip)
+    pic = None
+    reused_pic = False
+    if a.reuse_check:
+        bc_p = os.path.join(out_dir, 'build_check.json')
+        if os.path.exists(bc_p):
+            try:
+                prev = json.load(open(bc_p, encoding='utf-8'))
+                cand = prev.get('picture') if isinstance(prev.get('picture'), dict) else prev
+                cur_sig = pic_input_sig(ep_path, beats_path, ep_id, rules, skip_clip=a.skip_clip)
+                if cand and cand.get('pass') and cand.get('input_sig') == cur_sig:
+                    pic = cand
+                    reused_pic = True
+            except Exception:
+                pass
+    if pic is None:
+        pic = run_picture_checks(ep_path, ep_id, beats_path, rules, skip_lips=a.skip_lips, skip_clip=a.skip_clip)
     if not pic['pass'] and not a.force_render:
         print_picture_report(pic, max_lines=22)
         print('  STOP: fix QA/clip fails before --final render (or pass --force-render to inspect anyway)')
@@ -384,45 +454,72 @@ def mode_final(a):
     proxy = os.path.join(out_dir, 'review_proxy.mp4')
     audio = os.path.abspath(a.audio) if a.audio else os.path.join(out_dir, 'audio', 'mix.wav')
     use_audio = audio if os.path.exists(audio) else None
+    is_demo = rel(ep_path).startswith('demo/') or rel(ep_path).startswith('demo' + os.sep)
+    if not use_audio and not is_demo and not a.allow_silent:
+        print(f'FINAL FAIL  missing audio mix {rel(audio)} for {rel(ep_path)} (run `--audio` first, or pass `--allow-silent` for silent preview)')
+        sys.exit(1)
 
     rc_r, out_r, dt_r = run_cmd(
         ['node', 'tools/render.cjs', 'mp4', rel(ep_path), rel(mp4), '--fps', str(a.fps), '--crf', str(a.crf)] + (['--audio', rel(use_audio)] if use_audio else []),
         timeout=900,
     )
     if rc_r != 0 or not os.path.exists(mp4):
-        print(f'FINAL FAIL  render.cjs rc={rc_r} ({dt_r}s): {out_r.strip()[-200:]}')
+        print(f'FINAL FAIL  render.cjs rc={rc_r} ({dt_r}s): {first_err_line(out_r)}')
         sys.exit(1)
 
     py = py_venv()
-    rc_s, out_s, dt_s = run_cmd([py, 'tools/smooth.py', rel(mp4), '--ep', rel(ep_path)], timeout=180)
+    want_cover = a.cover_t is not None and a.cover_top and a.cover_plate
+    # Post-render tasks (smooth.py, review_proxy.mp4, cover.cjs) are independent -> run in parallel
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_sm = pool.submit(run_cmd, [py, 'tools/smooth.py', rel(mp4), '--ep', rel(ep_path)], 180)
+        f_px = pool.submit(make_proxy, mp4, proxy, a.proxy_fps)
+        f_cv = pool.submit(run_cmd, ['node', 'tools/cover.cjs', rel(ep_path), str(a.cover_t), a.cover_top, a.cover_plate, rel(os.path.join(out_dir, ep_id))], 120) if want_cover else None
+        rc_s, out_s, dt_s = f_sm.result()
+        rc_p, out_p, dt_p = f_px.result()
+        if f_cv:
+            rc_c, out_c, dt_c = f_cv.result()
+
     smooth_ok = rc_s == 0 and bool(re.search(r'^SMOOTH (PASS|OK)', out_s, re.M))
     smooth_line = next((l.strip() for l in out_s.splitlines() if re.match(r'^SMOOTH ', l)), f'rc={rc_s}')
-
-    rc_p, out_p, dt_p = make_proxy(mp4, proxy, proxy_fps=a.proxy_fps)
     proxy_ok = rc_p == 0 and os.path.exists(proxy)
 
     cover_msg = None
-    if a.cover_t is not None and a.cover_top and a.cover_plate:
-        rc_c, out_c, dt_c = run_cmd(['node', 'tools/cover.cjs', rel(ep_path), str(a.cover_t), a.cover_top, a.cover_plate, rel(os.path.join(out_dir, ep_id))], timeout=120)
-        cover_msg = f'OK ({dt_c}s): {out_c.strip()[:100]}' if rc_c == 0 else f'FAIL rc={rc_c}'
+    cover_ok = True
+    if want_cover:
+        cover_ok = rc_c == 0
+        cover_msg = f'OK ({dt_c}s): {out_c.strip()[:100]}' if cover_ok else f'FAIL rc={rc_c}: {first_err_line(out_c)}'
 
     fi = probe_media(mp4) or {}
     pi = probe_media(proxy) or {}
-    all_ok = pic['pass'] and smooth_ok and proxy_ok
+    spec_fails = []
+    if (fi.get('w'), fi.get('h')) not in ((1080, 1920), (1920, 1080)):
+        spec_fails.append(f"bad dimensions {fi.get('w')}x{fi.get('h')} (expect 1080x1920 or 1920x1080)")
+    if fi.get('fps') is None or abs(fi['fps'] - a.fps) > 0.1 or (fi.get('r_fps') is not None and abs(fi['r_fps'] - a.fps) > 0.1):
+        spec_fails.append(f"not {a.fps}fps CFR (avg={fi.get('fps')}, r={fi.get('r_fps')})")
+    if not fi.get('dur_s') or fi['dur_s'] < 0.5:
+        spec_fails.append(f"invalid duration {fi.get('dur_s')}s")
+    if use_audio and fi.get('audio') != 'aac@48000Hz':
+        spec_fails.append(f"expected audio aac@48000Hz, got {fi.get('audio')}")
+    if not is_demo and not a.allow_silent and fi.get('audio') == 'none':
+        spec_fails.append('final MP4 has no audio track')
+
+    all_ok = pic['pass'] and smooth_ok and proxy_ok and cover_ok and not spec_fails
     final_report = {
         'id': ep_id, 'pass': all_ok, 'picture': pic,
         'render_s': dt_r, 'smooth_ok': smooth_ok, 'smooth_line': smooth_line,
-        'final_mp4': fi, 'review_proxy': pi, 'cover': cover_msg,
+        'spec_fails': spec_fails, 'final_mp4': fi, 'review_proxy': pi, 'cover': cover_msg, 'cover_ok': cover_ok,
     }
     json.dump(final_report, open(os.path.join(out_dir, 'build_check.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 
     lines = [
         f"FINAL {'PASS' if all_ok else 'FAIL'}  {rel(ep_path)}  (rules {rules})",
-        f"  [QA/CLIP] {'PASS' if pic['pass'] else 'FAIL'} (qa_fail={pic['qa_fail_count']}, clip_fail={pic['clip_fail_count']}, warns={pic['qa_warns']})",
+        f"  [QA/CLIP] {'PASS' if pic['pass'] else 'FAIL'} (qa_fail={pic['qa_fail_count']}, clip_fail={pic['clip_fail_count']}, warns={pic['qa_warns']}" + (", reused" if reused_pic else "") + ")",
         f"  [RENDER]  {fi.get('path')}  {fi.get('w')}x{fi.get('h')} {fi.get('fps')}fps {fi.get('dur_s')}s {fi.get('size_mb')} MB {fi.get('kbps')} kbps audio={fi.get('audio')} ({dt_r}s)",
         f"  [SMOOTH]  {smooth_line[:135]} ({dt_s}s)",
         f"  [PROXY]   {pi.get('path')}  {pi.get('w')}x{pi.get('h')} {pi.get('fps')}fps {pi.get('size_mb')} MB audio={pi.get('audio')} ({dt_p}s)" if proxy_ok else f"  [PROXY]   FAIL rc={rc_p}: {out_p.strip()[-100:]}",
     ]
+    if spec_fails:
+        lines.append(f"  [SPEC]    FAIL: {'; '.join(spec_fails)[:140]}")
     if cover_msg:
         lines.append(f'  [COVER]   {cover_msg}')
     if not smooth_ok:
@@ -446,7 +543,9 @@ def main():
     P.add_argument('--audio', action='store_true', dest='audio_mode', help='audio check mode (target is .beats.json)')
     P.add_argument('--skip-build', action='store_true', help='with --audio: skip voice.py build')
     P.add_argument('--final', action='store_true', help='run checks + 30fps CRF17 render + smooth + review_proxy.mp4')
+    P.add_argument('--reuse-check', action='store_true', help='with --final: reuse passing build_check.json when SHA-256 of inputs matches')
     P.add_argument('--force-render', action='store_true', help='with --final: render even if QA/clip fails')
+    P.add_argument('--allow-silent', action='store_true', help='with --final: allow rendering without mix.wav (auto-on for demo/)')
     P.add_argument('--proxy-only', action='store_true', help='create out/<id>/review_proxy.mp4 only')
     P.add_argument('--spot', default=None, help='comma-separated timestamps for targeted 1080p stills')
     P.add_argument('--audio-file', dest='audio', default=None, help='override mix.wav path for --final / --proxy-only')

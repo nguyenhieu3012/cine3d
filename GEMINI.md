@@ -33,6 +33,6 @@
   ```
 
 ## Non-Negotiable Safety Locks
-- **ElevenLabs Credit Lock:** NEVER call `tools/voice.py record --yes` until owner explicitly approves and you record `pipeline.py record <id> credit_owner OK --by driver --quote "<owner words>"`.
+- **ElevenLabs Credit Lock:** NEVER call `tools/voice.py record --yes` until `script_gate` PASS is fresh and owner explicitly approves via `pipeline.py record <id> credit_owner OK --by driver --quote "<owner words>"` (or `animatic_owner OK --quote` if owner requested a silent animatic preview first).
 - **No Auto-Publish / Delete:** Never upload, schedule, or delete on YouTube/TikTok/Facebook without explicit owner order + `pipeline.py can-post <id>` PASS.
 - **Native Multimodal Advantage:** Watch & listen directly via `read_file` on `out/<id>/review_proxy.mp4` (~2–4 MB) and `out/<id>/audio/mix_preview.mp3` (~550 KB) instead of generating contact sheets (`cs*.jpg`) or 8fps motion strips.

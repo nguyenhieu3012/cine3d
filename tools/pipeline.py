@@ -409,8 +409,9 @@ def review_proxy(e):
     p = f'{e.out}/review_proxy.mp4'
     return p if os.path.exists(p) else None
 def check_driver_review(st, e):
-    h = sha(e.episode); cs, strips = sheets(e); proxy = review_proxy(e)
+    h = sha(e.episode); cs, strips = sheets(e)
     is_gem = st.get('workflow') == 'gemini'
+    proxy = review_proxy(e) if is_gem else None
     cmd = f'python3 tools/build_check.py {rel(e.episode)} --final  (or --proxy-only)' if is_gem else f'python3 tools/sheets.py {rel(e.episode)}  (contact sheets), then  python3 tools/sheets.py {rel(e.episode)} <t0> <t1>  (motion strip of one action)'
     rec_cmd = f'pipeline.py record {e.id} driver_review OK --by driver --note "..."'
     if not cs and not proxy:
@@ -802,10 +803,10 @@ def cmd_record(a):
         rec['hash'] = sha(e.beats); rec['jhash'] = judged_hash(e.beats); rec['jv'] = JV
         if not rec['jhash']: die(f'cannot record: {rel(e.beats)} is not a beats file (JSON with a "beats" list)', 1)
     elif step == 'driver_review':
-        cs, _ = sheets(e); proxy = review_proxy(e)
+        cs, _ = sheets(e); is_gem = st.get('workflow') == 'gemini'; proxy = review_proxy(e) if is_gem else None
         if not cs and not proxy and a.force is None:
-            hint = f'python3 tools/build_check.py {rel(e.episode)} --final' if st.get('workflow') == 'gemini' else f'python3 tools/sheets.py {rel(e.episode)}'
-            die(f'REFUSED: no review proof in {rel(e.out)} (neither review_proxy.mp4 nor cs*.jpg). Make it: {hint}', 1)
+            if is_gem: die(f'REFUSED: no review proof in {rel(e.out)} (neither review_proxy.mp4 nor cs*.jpg). Make it: python3 tools/build_check.py {rel(e.episode)} --final', 1)
+            die(f'REFUSED: no contact sheets in {rel(e.out)}/cs*.jpg. Make them: python3 tools/sheets.py {rel(e.episode)}', 1)
         if not os.path.exists(e.episode): die(f'cannot record: {rel(e.episode)} does not exist', 1)
         rec['hash'] = sha(e.episode)
     elif step == 'render':
