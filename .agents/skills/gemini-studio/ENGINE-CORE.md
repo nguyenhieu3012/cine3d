@@ -41,8 +41,9 @@ Tokens: `wide` (27mm) · `all` (35mm, ≥3 cast) · `two` (42mm, both) · `ms_<w
   - `punchAt: t | [t1, t2]` (8% push on stressed word) · `whip: 0.14` (whip pan in) · `rack: { from, to, t0, t1 }`
   - `eyes: { teo: 'cam' }` · `dof` (0 = all sharp) · `focusOn: 'bip'` · `shake` · `dutch` (deg) · `v: 1` (mirrored `two`/`wide`)
   - `hold: true` (deliberate shot > 3 s) · `action: true` (prop/move beat, must last ≥ 1.2 s) · `insert: true` (prop close-up)
-  - `rig: { f, head, az, el, eye }` (override framing; e.g. lower `eye` when top card is up)
+  - `rig: { f, head, az, el, eye }` (override framing; **QA eye_line requires eyes at 28–44% from top**: default tokens are already safe — NEVER set `rig.eye > 0.41`, and on `_lo` low-angle shots like `cu_teo_lo` keep `rig.eye <= 0.34` or omit `rig`!)
   - `free: { from: [x,y,z], at: [x,y,z], f, dof }` (custom camera; QA still checks framing & exposure!)
+  - **First-3s & rhythm rule (Round-1 PASS):** ALWAYS place **≥ 3 distinct resolved camera framings in `0..3.0 s`** (e.g., `0.0–1.0 cu_teo`, `1.0–2.0 ms_bip`, `2.0–3.2 two`) and aim for **6 shots (~2.0 s avg)** in `0..12 s` (never 7 shots = 1.71 s avg, which fails `shot_rhythm`!). Keep top overlays compact (`y: 260..345`) so they never cover > 15% of a subject's head.
   - Multi-cast: `frame: ['teo', 'bip', 'ba']` on `two`/`wide`/`all`; `partner: 'ba'` on singles.
 - Episode-level timing FX: `hits: [{ t, frames: 3 }]` (hit-stop freeze on slam/impact).
 
@@ -64,7 +65,7 @@ Every spoken line MUST have an `emo` matching its beat's `mood` (`qa.cjs` checks
 ## 4. Overlays (`core/overlay_v2.js` + `core/overlay.js`)
 **Safe zones (9:16 v2):** keep widgets centered around `x: 472` (`x 54..890`, strictly clear of right platform UI `x > 900`), `y 224..1220` (above captions at `y: 1385`, clear of bottom UI `y > 1536`). Captions in `rules: 2` stay centered at `x: 540` with auto-capped `maxW: 710` (`x 185..895 < 900`; override via `captions: { x, maxW }` if needed).
 - **Blueprint v2 Floating Widgets (`core/overlay_v2.js` — `backdrop: false` by default, zero blur over cast):**
-  - `chatStrip`: `{ kind:'chatStrip', t0, t1, sender, sub?, avatar:'mum'|'gpt'|'bank'|'letter', accent, y:345, maxShow:2, msgs:[{ t, from:'them'|'me', text }] }` (≤ 8 words/msg, 1.8–2.5 s each, 1 msg at a time!)
+  - `chatStrip`: `{ kind:'chatStrip', t0, t1, sender, sub?, avatar:'mum'|'gpt'|'bank'|'letter', accent, y:345, maxShow:2, msgs:[{ t, from:'them'|'me', text }] }` (**≤ 8 words/msg, STRICT `1.8–2.5 s` per message — NEVER keep a message card up > 2.5 s or `card_time` fails!**, 1 msg revealed at a time!)
   - `callCard`: `{ kind:'callCard', t0, t1, mode:'outgoing'|'busy'|'incoming'|'live', name, who?, busyAt?, busyText?:'Máy bận!', answer?, avatar:'mum', y:320 }` (`outgoing`/`busy` draw red hang-up button ONLY)
   - `voiceNote`: `{ kind:'voiceNote', t0, t1, sender, who, avatar:'mum', durLabel:'0:04', text?, y:345 }` (waveform auto-synced to `ep.lips`)
   - `receipt`: `{ kind:'receipt', t0, t1, title, amount, rows:[['K','V']], status:'ok'|'fail'|'pending', y:370 }`

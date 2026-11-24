@@ -211,13 +211,15 @@ async def stage_script_gate(ep_id, ch):
         print(json.dumps({"stage": "script_gate", "pass": False, "reason": "scriptlint_fail", "output": out_l[-1500:]}, ensure_ascii=False, indent=1))
         return
 
-    phase(f"2. Blind Script Gate ({ch}, model=pro)")
+    gate_model = args.get("gate_model") or "pro"
+    phase(f"2. Blind Script Gate ({ch}, model={gate_model})")
     spec_text = read_text(f".agents/skills/gemini-studio/specs/{ch}.md")
     beats_raw = json.load(open(os.path.join(ROOT, beats_rel), encoding="utf-8"))
-    # Strip any logline/meta summary for genuine blind Stranger Test (keep header cards so gate sees screen text)
+    # Strip any logline/meta summary for genuine blind Stranger Test (keep header cards & payoff id so gate sees screen text & ending boundary)
     blind_beats = {
         "id": beats_raw.get("id"),
         "hook": beats_raw.get("hook"),
+        "payoff": beats_raw.get("payoff"),
         "beats": [
             {k: b[k] for k in ("id", "who", "text", "say", "card", "mood", "land", "pause") if k in b}
             for b in beats_raw.get("beats", [])
@@ -236,7 +238,7 @@ async def stage_script_gate(ep_id, ch):
             f"=== CHANNEL SPEC ===\n{spec_text}\n\n"
             f"=== RAW SCRIPT (NO LOGLINE) ===\n{blind_json}\n"
         )
-        gate_res = await agent(prompt, schema=SCHEMAS.SCRIPT_GATE_TRADA_SCHEMA, role=f"Blind Script Gate ({ep_id})", model="pro")
+        gate_res = await agent(prompt, schema=SCHEMAS.SCRIPT_GATE_TRADA_SCHEMA, role=f"Blind Script Gate ({ep_id})", model=gate_model)
         passed = trada_gate_passed(gate_res)
         gate_res["verdict"] = "PASS" if passed else "FAIL"
         facts_res = None
@@ -262,7 +264,7 @@ async def stage_script_gate(ep_id, ch):
                 f"SCRIPT CONTEXT:\n{blind_json}\n"
             )
             tasks.append(("facts", fact_prompt, SCHEMAS.FACT_CHECK_GOAT_SCHEMA, f"GOAT Fact-Checker ({ep_id})"))
-        results = await parallel(tasks, lambda t: agent(t[1], schema=t[2], role=t[3], model="pro"))
+        results = await parallel(tasks, lambda t: agent(t[1], schema=t[2], role=t[3], model=gate_model))
         gate_res = results[0]
         facts_res = results[1] if len(results) > 1 else {"verdict": "GO", "claims": [], "summary": "No factual claims on card."}
         facts_ok = goat_facts_passed(facts_res, len(facts))
@@ -380,7 +382,16 @@ async def stage_build_and_gate(ep_id, ch):
 
     pic_ok = False
     last_check = ""
-    for rnd in range(1, max_rounds + 1):
+    if existing_ep and args.get("skip_if_passing", True):
+        rc_pre, out_pre = sh([sys.executable or "python3", "tools/build_check.py", ep_rel], timeout=360)
+        if rc_pre == 0:
+            log(f"Existing {ep_rel} already passed build_check (0 builder tokens spent):\n{out_pre}")
+            pic_ok = True
+            last_check = out_pre
+        else:
+            log(f"Existing {ep_rel} pre-check rc={rc_pre}; handing failures directly to flash:\n{out_pre}")
+            build_prompt += f"\n=== CURRENT build_check.py FAILURES TO FIX ===\n{out_pre}\n"
+    for rnd in range(1, (0 if pic_ok else max_rounds) + 1):
         log(f"Builder round {rnd}/{max_rounds}")
         b_res = await builder(build_prompt, SCHEMAS.BUILDER_RESULT_SCHEMA)
         if b_res.get("status") == "BLOCKED":
@@ -439,7 +450,8 @@ async def stage_build_and_gate(ep_id, ch):
         f"=== CHANNEL SPEC ({ch}) ===\n{spec_doc}\n\n"
         f"=== SCRIPT BEATS (for post-watch cross-check of missing lines/gags) ===\n{beats_doc}\n"
     )
-    reviewer = agent(rev_standing, role=f"Blind Episode Gate ({ep_id})", model="pro")
+    rev_model = args.get("gate_model") or "pro"
+    reviewer = agent(rev_standing, role=f"Blind Episode Gate ({ep_id})", model=rev_model)
     gate_res = await reviewer(
         f"Watch and listen to `{proxy_abs}` via `read_file` now, then cross-check with the machine report below and return the 6-door verdict.\n\n"
         f"=== build_check.json ===\n{bc_text}\n",
@@ -485,7 +497,11 @@ async def stage_build_and_gate(ep_id, ch):
     del reviewer
 
     if render_fresh and os.path.exists(os.path.join(ROOT, "out", ep_id, "pipeline.json")) and os.path.exists(os.path.join(ROOT, mp4_rel)):
-        sh([sys.executable or "python3", "tools/pipeline.py", "status", ep_id, "--run"], timeout=120)
+        # Advance cached machine checks through voice (6) -> audio (7) -> picture (8) so record render OK never gets blocked by stale intermediate steps
+        for _ in range(4):
+            _, st_out = sh([sys.executable or "python3", "tools/pipeline.py", "status", ep_id, "--run"], timeout=180)
+            if "NEXT: step 9 render" in st_out or "render" in st_out.splitlines()[-1]:
+                break
         sh([sys.executable or "python3", "tools/pipeline.py", "record", ep_id, "render", "OK", "--by", "gemini-workflow", "--mp4", mp4_rel], timeout=30)
         sh([sys.executable or "python3", "tools/pipeline.py", "status", ep_id, "--run"], timeout=180)
         sh([sys.executable or "python3", "tools/pipeline.py", "record", ep_id, "episode_gate", "PASS" if gate_ok else "FAIL", "--by", "gemini-pro-episode-gate", "--note", gate_res.get("summary", "")[:140]], timeout=30)
