@@ -10,16 +10,16 @@ A small real-3-D engine for 9:16 dialogue Shorts, plus the AI-agent workflow tha
 
 | Folder | Content |
 |---|---|
-| `core/`, `main.js`, `index.html` | Engine: stage, rig, gait, camera, overlays, player, plus opt-in `core/ep_kit.js` authoring helper |
-| `packs/` | Characters and sets of two shows: a Vietnamese tea stall (`trada`) and an English football pub (`goat`) |
-| `episodes/` | Three sample episodes: `gb11`, `gta6p2`, `mekhongcanve` |
-| `demo/` | Look tests for sets, props and effects |
-| `tools/` | Render, QA, collision check, smoothness check, script lint, animatic, voice and mix, audio gate, pipeline, unified `build_check.py` |
+| `core/`, `main.js`, `index.html` | Engine: stage, rig, gait, camera, overlays (`overlay_v2.js`, `overlay_board.js`, `media.js`), player, plus opt-in `core/ep_kit.js` authoring helper |
+| `packs/` | Characters & sets (`trada`, `goat` with live `facePlus` for both) + `packs/shared/` (10 Gemini cutout stickers + 2 stylized 9:16 backdrops + `catalog.json`) |
+| `episodes/` | Sample episodes: `gb11`, `gta6p2`, `mekhongcanve`, `thaylamgiau` |
+| `demo/` | Look tests & v3.0 board demos (`demo/v3_board_trada.js`, `demo/v3_board_goat.js`) |
+| `tools/` | Render, QA, clipcheck, smooth, scriptlint, voice/mix, audiogate, pipeline, `scaffold_ep.py`, `cutout_sticker.py`, unified `build_check.py` |
 | `audio_lib/` | Sound effects, ambience, music; sources in `audio_lib/LICENSES.md` |
 | `blender/` | Retired Blender path, kept for reference |
 | `pipeline/` | Step table and brief templates for the agents |
 | `agents/`, `skills/` | Claude Code agents and skills (builder, reviewers, script writer, idea scout) |
-| `.agents/`, `GEMINI.md` | **Gemini Studio**: standalone Gemini / Antigravity workflow (skills, compact channel specs, `ENGINE-CORE.md`, JSON schemas, Python `run_workflow` orchestrator) |
+| `.agents/`, `GEMINI.md` | **Gemini Studio v3.0**: standalone Gemini / Antigravity workflow (skills, compact channel specs, `WRITERS-ROOM.md`, `ENGINE-CORE.md`, JSON schemas, Python `run_workflow` orchestrator) |
 | `workflow/` | Production workflow, model routing, script gate, self-check, machine checks (mostly Vietnamese) |
 | `ENGINE.md`, `docs/` | Engine manual and benchmark notes (`docs/gemini-studio-benchmark.md`) |
 
@@ -32,37 +32,45 @@ A small real-3-D engine for 9:16 dialogue Shorts, plus the AI-agent workflow tha
 5. Picture checks: `tools/qa.cjs`, `tools/clipcheck.cjs`, `tools/smooth.py`.
 6. Render at 30 fps, then a blind review by another agent, then the owner.
 
-## Gemini Studio (Gemini / Antigravity Workflow)
+## Gemini Studio v3.0 (Gemini / Antigravity Workflow)
 
 A standalone, Gemini-native production system placed cleanly in `.agents/` and `GEMINI.md` (zero changes to `.claude/`, 100% backwards-compatible with existing Claude workflows and legacy episodes).
 
-**Tiếng Việt:** Hệ thống sản xuất video dành riêng cho **Gemini / Antigravity** (độc lập hoàn toàn với bộ Claude cũ), tận dụng lợi thế **xem video chuyển động thật & nghe âm thanh thật trực tiếp**, điều phối kỹ thuật bằng code Python (`run_workflow` = 0 token điều phối), ép JSON Schema cứng và tách tài liệu gọn (giảm **93.8%** dung lượng tài liệu nạp vào context: `410 KB → 25.4 KB`).
+**Tiếng Việt:** Hệ thống sản xuất video dành riêng cho **Gemini / Antigravity** (độc lập hoàn toàn với bộ Claude cũ), tận dụng lợi thế **xem video chuyển động thật & nghe âm thanh thật trực tiếp**, hệ sinh thái trình bày 2D khai báo + sticker Gemini (`overlay_board.js`), khởi tạo khung 0-token (`scaffold_ep.py`), xem nháp nhanh `--draft`, và điều phối bằng Python (`run_workflow` = 0 token).
 
-### What's new in this update
-- **Single 3D build on real voice timing + strict ElevenLabs credit lock:** Use `pipeline.py new <id> --channel trada|goat --workflow gemini`. `voice.py record` stays hard-locked (`exit 3`) until the owner explicitly approves spend via `credit_owner OK --quote "<owner words>"` after `script_gate` PASS + `voice.py need` quote.
-- **Native multimodal review (replaces contact sheets & 8 fps motion strips):** `tools/build_check.py` outputs a compact `out/<id>/review_proxy.mp4` (`540×960`, `24 fps`, `~2–4 MB`) and `out/<id>/audio/mix_preview.mp3` (`96k`, `~550 KB`) so Gemini watches real motion and listens to voice, lip-sync, music, and SFX directly via `read_file`.
-- **Zero-token Python orchestration + strict model tiering:** `.agents/workflows/episode_pipeline.py` + `.agents/workflows/schemas.py` route high-judgment tasks to **Gemini 4 Neon (High)**, blind script & 6-door video gates to **`pro`**, batched 3D building (≤ 3 rounds) to **`flash`**, and packaging to **`flash_lite`**.
-- **Unified check & render CLI (`tools/build_check.py`, ≤ 25 lines stdout):** Replaces scattered calls to `lips.cjs`, `qa.cjs`, `clipcheck.cjs`, `render.cjs`, `smooth.py`, `voice.py build`, `audiogate.py`, and `scriptlint.py`, plus flags `SYNTH_FALLBACK` SFX automatically.
-- **Engine & tool fixes (100% backwards-compatible):** Fixed `audio_lib/catalog.json` (`mood_map.ai`), Blueprint v2 centered caption right-edge safe cap (`core/overlay.js`, `CX = 540, maxW = 710 < 900`), enabled real CC0 `audio_lib` + real/synth telemetry for both Trà đá v2 and non-legacy GOAT (`tools/voice.py`), `qa.cjs` v2 length/hook/`overlay_v2` checks, `build_check.py` final media-spec/audio gate + `SYNTH_FALLBACK` reporting, strict Claude/Gemini lock & review-proof isolation (`tools/rules2.py`, `tools/pipeline.py`), `pipeline.py` stale step-3 cache bug, Python 3.9 f-string compatibility, `animatic.py` unused label skipping, and `regress.py --available` for clean repo clones.
+### What's new in v3.0 (YouTube 2026 Upgrade)
+- **Declarative 2D Visual Explainer Engine (`core/overlay_board.js` + `core/media.js` + `core/ep_kit.js`):** 5 built-in `boardOverlay` layouts (`flow`, `compare` with 9:16 vertical `stack`, `chart`, `corkboard` with pins/red strings/magnifying glass, and Tifo Football `tactics` pitch), plus `goatStatCard`, `sticker`/`image` (Vox 12fps stutter + white paper-cutout rim), `highlighter`, `setswapBackdrop` (painted 2D backdrop + Ken Burns), and `diagramRig()`. Cuts diagram authoring code & tokens by ~90%, with automatic QA read extraction in `tools/qa.cjs`.
+- **Gemini Cutout Sticker & Backdrop Library (`packs/shared/` + `tools/cutout_sticker.py`):** 10 cohesive ink-outlined transparent PNG stickers + 2 stylized `1080×1920` backdrops + `catalog.json` with reusable style prompts.
+- **0-Token Scaffolder & Faster Rendering (`tools/scaffold_ep.py` + `tools/build_check.py`):** Generates QA-ready `episodes/<id>.js` directly from `beats.json` at 0 tokens (auto-run inside `episode_pipeline.py`); adds `--draft` (12fps 540p layout preview in `< 2 min`) and `--chunks auto` (frame-accurate chunked rendering + lossless concat for long episodes).
+- **GOAT Beef v3.0 Parity (`packs/goat/faceplus.js` + `packs/goat/fans.js` + `main.js`):** Enables `look2: true, act2: true, facePlus: true` by default in `goatDefaults()` with live English phoneme→viseme lip-sync, blinks, saccades, and Quickie 18s fast-track.
+- **Core v2.1 Foundation (retained):** Strict fail-closed ElevenLabs credit lock (`credit_owner OK --quote`), Writers' Room 3-take divergence + Entertainment Kill-Floors ≥ 7/10, 16:9 native overlay/post support, `L2SETS.bar`, native multimodal review via `review_proxy.mp4` & `mix_preview.mp3`, and verified real CC0 `audio_lib`.
 
-### Quick start (Gemini Studio)
+### Quick start (Gemini Studio v3.0)
 
 ```bash
-# 1. Start a Gemini-workflow episode (read GEMINI.md + .agents/skills/gemini-studio/SKILL.md)
+# 1. Start a Gemini-workflow episode & generate 0-token QA-ready scaffold
 python3 tools/pipeline.py new <id> --channel trada --workflow gemini
+python3 tools/scaffold_ep.py episodes/<id>.beats.json --layout standard|flow|compare|chart|corkboard|tactics
 
-# 2. Unified audio build + gate + real-time lint + mix_preview.mp3 + SYNTH_FALLBACK check
+# 2. Cut out a new Gemini generate_image sticker or 9:16 backdrop
+python3 tools/cutout_sticker.py raw.jpg packs/shared/stickers/<name>.png
+python3 tools/cutout_sticker.py --backdrop raw.jpg packs/shared/backdrops/<name>.jpg
+
+# 3. Unified audio build + gate + real-time lint + mix_preview.mp3 + SYNTH_FALLBACK check
 python3 tools/build_check.py episodes/<id>.beats.json --audio
 
-# 3. Unified picture check (auto-lips + qa.cjs + clipcheck.cjs, <= 25 lines)
+# 4. Unified picture check + fast 12fps draft preview (< 2 min)
 python3 tools/build_check.py episodes/<id>.js
+python3 tools/build_check.py episodes/<id>.js --draft
 
-# 4. Final 30fps CRF17 render + smooth.py + review_proxy.mp4 (~2-4 MB)
+# 5. Final auto-chunked 30fps CRF17 render + smooth.py + review_proxy.mp4 (~2-4 MB)
 python3 tools/build_check.py episodes/<id>.js --final
 
-# 5. Regression check (owner machine / clean clone)
-python3 tools/regress.py              # full reference stills
+# 6. Regression check & v3.0 demos
+python3 tools/regress.py              # full reference stills (owner machine)
 python3 tools/regress.py --available  # public repo clone
+python3 tools/build_check.py demo/v3_board_trada.js --draft
+python3 tools/build_check.py demo/v3_board_goat.js --draft
 ```
 
 See [GEMINI.md](GEMINI.md), [.agents/skills/gemini-studio/SKILL.md](.agents/skills/gemini-studio/SKILL.md), and [docs/gemini-studio-benchmark.md](docs/gemini-studio-benchmark.md) for full workflow details and live benchmark measurements.

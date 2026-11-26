@@ -21,6 +21,10 @@
 | `chest` window cutaway (`ngay13`) | `ENGINE.md` L156–162 |
 | Thank-you special (`packs/trada/thanks.js`, follower counter) | `ENGINE.md` L268–276 |
 | GOAT Beef desk goal counter (`setOpts.counter`) | `ENGINE.md` L163–171, `packs/goat/bar.js` L168–185 |
+| **v3.0 2D Visual Explainer Engine (`board`, `statCard`, `sticker`, `highlighter`, `setswapBackdrop`)** | `core/overlay_board.js`, `core/media.js`, `core/ep_kit.js` |
+| **v3.0 Gemini Cutout Stickers & Backdrops** | `packs/shared/stickers/catalog.json`, `tools/cutout_sticker.py` |
+| **v3.0 Live `facePlus` (Vietnamese & English)** | `packs/trada/faceplus.js`, `packs/goat/faceplus.js` |
+| **v3.0 0-Token Scaffolder & Draft/Chunk Render** | `tools/scaffold_ep.py`, `tools/build_check.py` (`--draft`, `--chunks auto`) |
 | **Archived / Rare:** Zombie sets, chars, overlays & score | `ENGINE.md` L172–267 |
 | **Archived / Rare:** GTA world, cars, HUD, shop, sea, p2b, p3b | `ENGINE.md` L357–474 |
-| Reference modern examples | `demo/trada_v2_widgets.js`, `episodes/gb11.js`, `episodes/mekhongcanve.js` |
+| Reference modern examples | `demo/v3_board_trada.js`, `demo/v3_board_goat.js`, `demo/trada_v2_widgets.js`, `episodes/gb11.js`, `episodes/mekhongcanve.js`, `episodes/thaylamgiau.js` |
