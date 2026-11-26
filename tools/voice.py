@@ -69,12 +69,14 @@ if len(sys.argv) > 1 and sys.argv[1] == 'find':   # voice.py find <SPEAKER> <wor
     for spk, text, where in rows[:40]: print(f'{spk}  "{text}"\n    {where[0]}' + (f'  (+{len(where) - 1} more)' if len(where) > 1 else ''))
     print(f'{len(rows)} take(s) of {sys.argv[2]} contain: {" ".join(words)}' + (' (first 40 shown)' if len(rows) > 40 else '') + ('' if rows else '  -> write the line new, or try fewer / shorter words'))
     sys.exit(0 if rows else 1)
-cmd, path = sys.argv[1], sys.argv[2]; B = json.load(open(path)); ID = B['id']
+cmd, path = sys.argv[1], sys.argv[2]; B = json.load(open(path, encoding='utf-8')); ID = B['id']
 if cmd == 'record':   # 23/11 credit lock (rules 2 trada, or any Gemini Studio workflow episode): no ElevenLabs call, not even the dry run, until the owner has approved (animatic_owner in v2 OR credit_owner in Gemini 1A). Checked BEFORE anything is written to disk.
     import rules2
     _st = rules2.read_state(ID)
     _is_goat_cli = '--channel' in sys.argv and sys.argv[sys.argv.index('--channel') + 1:][:1] == ['goat']
-    _need_lock = (rules2.rules_version(B, _st, rules2.cli_rules()) == 2 and not _is_goat_cli) or bool(_st and _st.get('workflow') == 'gemini')
+    _trada_v2 = (isinstance(B, dict) and int(B.get('rules') or 0) >= 2) or bool(_st and _st.get('channel') == 'trada')
+    _allow_goat_bypass = _is_goat_cli and not _trada_v2
+    _need_lock = (rules2.rules_version(B, _st, rules2.cli_rules()) == 2 and not _allow_goat_bypass) or bool(_st and _st.get('workflow') == 'gemini')
     if _need_lock:
         _ok, _mode, _why = rules2.voice_unlocked(ID)
         if not _ok:
@@ -86,7 +88,7 @@ if cmd == 'record':   # 23/11 credit lock (rules 2 trada, or any Gemini Studio w
 OUT = f'{ROOT}/out/{ID}/audio'; os.makedirs(OUT, exist_ok=True)
 _lib_p = f'{TD}/vo/lib/index.json'
 idx = json.load(open(_lib_p, encoding='utf-8')) if os.path.exists(_lib_p) else {}
-OWN = f'{ROOT}/voice/index.json'; own = json.load(open(OWN)) if os.path.exists(OWN) else {}   # cine3d's own takes: 'SPEAKER|text' -> voice/<episode>/<beat>.mp3
+OWN = f'{ROOT}/voice/index.json'; own = json.load(open(OWN, encoding='utf-8')) if os.path.exists(OWN) else {}   # cine3d's own takes: 'SPEAKER|text' -> voice/<episode>/<beat>.mp3
 def ff(x, af):
     return np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', str(SR), '-ac', '1', '-i', '-', '-af', af, '-f', 'f32le', '-'], input=x.astype(np.float32).tobytes(), capture_output=True, check=True).stdout, np.float32).copy()
 def load(f):
@@ -170,7 +172,7 @@ if cmd == 'record':   # voice.py record <beats.json> --ceiling <credits> [--max 
     if ceiling is None: sys.exit('record needs --ceiling <credits> (the figure the owner approved for this episode)')
     ceiling = float(ceiling); ch = opt('--channel')
     if not ch:
-        try: ch = json.load(open(f'{ROOT}/out/{ID}/pipeline.json')).get('channel')
+        try: ch = json.load(open(f'{ROOT}/out/{ID}/pipeline.json', encoding='utf-8')).get('channel')
         except Exception: ch = None
     try: CH = json.load(open(f'{ROOT}/pipeline/channels.json', encoding='utf-8')).get('channels', {})
     except Exception: CH = {}
@@ -179,42 +181,62 @@ if cmd == 'record':   # voice.py record <beats.json> --ceiling <credits> [--max 
             v = (CH.get(c, {}).get('voices') or {}).get(spk) or VOICES.get(c, {}).get(spk)
             if v: return v
         return None
+    model_id = B.get('voiceModel') or os.environ.get('CINE3D_VOICE_MODEL') or 'eleven_v4'
     miss = missing_lines(); rows = []
     for b, why in miss[:mx]: rows.append(dict(b=b, spk=spk_of(b), sent=sent_text(b), chars=len(sent_text(b)), voice=voice_for(spk_of(b)), why=why))
     spent = sum(e.get('chars', 0) for e in TK['takes'].values() if e.get('src') in ('record', 'agent'))
-    print(f'{ID}: {len(miss)} line(s) missing, this call takes the first {len(rows)} (--max {mx}); channel {ch or "?"}')
-    for r in rows: print(f"  {r['b']['id']:5s} {r['spk']:8s} voice {r['voice'] or 'NONE'}  {r['chars']:3d} chars ~{credits(r['chars']):3d} credits{'  (replaces a STALE take: the old file moves to voice/' + ID + '/_stale/)' if r['why'] == 'stale take' else ''}: {r['sent']}")
-    bt = sum(r['chars'] for r in rows); after = spent + bt
-    print(f'batch {bt} chars ~{credits(bt)} credits; recorded so far for {ID}: {spent} chars ~{credits(spent)} credits; after this batch {after} chars ~{credits(after)} credits; ceiling {ceiling:.0f}')
+    print(f'{ID}: {len(miss)} line(s) missing, this call takes the first {len(rows)} (--max {mx}); channel {ch or "?"}, model {model_id}')
+    seen_keys = set(); bt = 0
+    for r in rows:
+        dk = (r['spk'], norm(r['sent']))
+        is_dup = dk in seen_keys
+        seen_keys.add(dk)
+        r['dup'] = is_dup
+        if not is_dup: bt += r['chars']
+        print(f"  {r['b']['id']:5s} {r['spk']:8s} voice {r['voice'] or 'NONE'}  {r['chars']:3d} chars ~{0 if is_dup else credits(r['chars']):3d} credits{'  (dedup: reuses earlier line in batch)' if is_dup else ''}{'  (replaces a STALE take: the old file moves to voice/' + ID + '/_stale/)' if r['why'] == 'stale take' else ''}: {r['sent']}")
+    after = spent + bt
+    print(f'batch {bt} unique chars ~{credits(bt)} credits; recorded so far for {ID}: {spent} chars ~{credits(spent)} credits; after this batch {after} chars ~{credits(after)} credits; ceiling {ceiling:.0f}')
     if not rows: print('nothing to record'); sys.exit(0)
     nov = sorted({r['spk'] for r in rows if not r['voice']})
     if nov: sys.exit(f'REFUSED: no voice id for speaker(s) {", ".join(nov)}: add them to the `voices` map of the channel in pipeline/channels.json (or pass --channel)')
+    placeholders = sorted({f"{r['spk']}={r['voice']}" for r in rows if str(r['voice']).startswith('VOICE_ID_')})
+    if placeholders: sys.exit(f'REFUSED: placeholder voice id(s) detected ({", ".join(placeholders)}): configure real ElevenLabs voice IDs under `channels.<ch>.voices` in pipeline/channels.json before recording')
     if credits(after) > ceiling: sys.exit(f'REFUSED: ~{credits(after)} credits after this batch passes the ceiling {ceiling:.0f}: nothing sent. Lower --max, or ask the owner for a higher ceiling')
-    if not yes: print(f'DRY RUN: nothing sent, no credit spent. Add --yes to send {len(rows)} request(s) (model eleven_v4, one generation each, mp3 44.1 kHz) and save voice/{ID}/<beat id>.mp3'); sys.exit(0)
+    if not yes: print(f'DRY RUN: nothing sent, no credit spent. Add --yes to send request(s) (model {model_id}, one generation per unique line, mp3 44.1 kHz) and save voice/{ID}/<beat id>.mp3'); sys.exit(0)
     FAKE = os.environ.get('CINE3D_VOICE_FAKE_MP3')   # test hook: copy this mp3 instead of calling the API (no network, no key read)
     def api_key():
-        m = re.search(r'^\s*(?:export\s+)?ELEVENLABS_API_KEY\s*=\s*(.+?)\s*$', open(os.path.expanduser('~/.config/cine3d/.env'), encoding='utf-8').read(), re.M)
+        env_k = os.environ.get('ELEVENLABS_API_KEY', '').strip()
+        if env_k: return env_k
+        env_p = os.path.expanduser('~/.config/cine3d/.env')
+        if not os.path.exists(env_p): sys.exit('ELEVENLABS_API_KEY not set in environment and ~/.config/cine3d/.env not found')
+        m = re.search(r'^\s*(?:export\s+)?ELEVENLABS_API_KEY\s*=\s*(.+?)\s*$', open(env_p, encoding='utf-8').read(), re.M)
         if not m: sys.exit('ELEVENLABS_API_KEY not found in ~/.config/cine3d/.env')
         return m.group(1).strip('\'"')
-    saved = []; os.makedirs(f'{ROOT}/voice/{ID}', exist_ok=True)
+    saved = []; batch_cache = {}; os.makedirs(f'{ROOT}/voice/{ID}', exist_ok=True)
     for r in rows:
-        b = r['b']; dst = f'{ROOT}/voice/{ID}/{b["id"]}.mp3'
-        try:
-            if FAKE: data = open(FAKE, 'rb').read()
-            else:
-                rq = urllib.request.Request(f'https://api.elevenlabs.io/v1/text-to-speech/{r["voice"]}?output_format=mp3_44100_128', data=json.dumps({'text': r['sent'], 'model_id': 'eleven_v4'}).encode(), method='POST', headers={'xi-api-key': api_key(), 'Content-Type': 'application/json', 'Accept': 'audio/mpeg'})
-                with urllib.request.urlopen(rq, timeout=120) as rs: data = rs.read()
-            if not data: raise ValueError('empty audio')
-        except urllib.error.HTTPError as ex_:
-            print(f'STOPPED at {b["id"]}: ElevenLabs HTTP {ex_.code}: {ex_.read()[:300].decode("utf-8", "replace")}\nalready saved this call: {", ".join(saved) or "none"}; {b["id"]} was NOT saved and is not retried'); sys.exit(1)
-        except Exception as ex_:
-            print(f'STOPPED at {b["id"]}: {type(ex_).__name__}: {str(ex_)[:200]}\nalready saved this call: {", ".join(saved) or "none"}; {b["id"]} was NOT saved and is not retried'); sys.exit(1)
+        b = r['b']; dst = f'{ROOT}/voice/{ID}/{b["id"]}.mp3'; dk = (r['spk'], norm(r['sent']))
+        if dk in batch_cache:
+            data = open(batch_cache[dk], 'rb').read()
+            src_tag = 'dedup'
+        else:
+            src_tag = 'record'
+            try:
+                if FAKE: data = open(FAKE, 'rb').read()
+                else:
+                    rq = urllib.request.Request(f'https://api.elevenlabs.io/v1/text-to-speech/{r["voice"]}?output_format=mp3_44100_128', data=json.dumps({'text': r['sent'], 'model_id': model_id}).encode(), method='POST', headers={'xi-api-key': api_key(), 'Content-Type': 'application/json', 'Accept': 'audio/mpeg'})
+                    with urllib.request.urlopen(rq, timeout=120) as rs: data = rs.read()
+                if not data: raise ValueError('empty audio')
+            except urllib.error.HTTPError as ex_:
+                print(f'STOPPED at {b["id"]}: ElevenLabs HTTP {ex_.code}: {ex_.read()[:300].decode("utf-8", "replace")}\nalready saved this call: {", ".join(saved) or "none"}; {b["id"]} was NOT saved and is not retried'); sys.exit(1)
+            except Exception as ex_:
+                print(f'STOPPED at {b["id"]}: {type(ex_).__name__}: {str(ex_)[:200]}\nalready saved this call: {", ".join(saved) or "none"}; {b["id"]} was NOT saved and is not retried'); sys.exit(1)
         old = take_file(b)
         if old:   # only a STALE take gets here: keep it aside, never delete
             os.makedirs(f'{ROOT}/voice/{ID}/_stale', exist_ok=True); shutil.move(old, f'{ROOT}/voice/{ID}/_stale/{time.strftime("%H%M%S")}_{os.path.basename(old)}')
         open(dst + '.tmp', 'wb').write(data); os.replace(dst + '.tmp', dst)
-        TK['takes'][b['id']] = dict(text=b['text'], say=b.get('say'), sent=r['sent'], spk=r['spk'], chars=r['chars'], voice=r['voice'], model='eleven_v4', file=os.path.basename(dst), at=now_iso(), src='record'); TK['pending'].pop(b['id'], None); takes_save(TK); saved.append(b['id'])
-        print(f'  saved voice/{ID}/{os.path.basename(dst)} ({len(data)} bytes, {r["chars"]} chars)')
+        batch_cache.setdefault(dk, dst)
+        TK['takes'][b['id']] = dict(text=b['text'], say=b.get('say'), sent=r['sent'], spk=r['spk'], chars=0 if src_tag == 'dedup' else r['chars'], voice=r['voice'], model=model_id, file=os.path.basename(dst), at=now_iso(), src=src_tag); TK['pending'].pop(b['id'], None); takes_save(TK); saved.append(b['id'])
+        print(f'  saved voice/{ID}/{os.path.basename(dst)} ({len(data)} bytes, {0 if src_tag == "dedup" else r["chars"]} chars{" [dedup]" if src_tag == "dedup" else ""})')
     print(f'recorded {len(saved)} line(s); total recorded for {ID}: {TK["total_chars"]} chars ~{credits(TK["total_chars"])} credits (voice/{ID}/takes.json). Next: voice.py need {path}')
     sys.exit(0)
 if cmd == 'build':
@@ -540,17 +562,19 @@ elif B.get('music'):
     except Exception: pass
     stale = (not LEGACY) and json.loads(json.dumps(info)) != prev_info
     if M.get('mood') == 'zombie' or not os.path.exists(music) or '--music' in sys.argv or stale or abs(float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', music], capture_output=True, text=True).stdout or 0) - DUR) > 0.6:
-        json.dump(info, open(f'{OUT}/score_info.json', 'w'), ensure_ascii=False)
-        if M.get('mood') == 'zombie': subprocess.run([f'{TD}/.venv/bin/python', f'{ROOT}/tools/score_zombie.py'], env={**os.environ, 'SCORE_INFO': f'{OUT}/score_info.json', 'SCORE_OUT': music, 'MUSIC_FADE': str(M.get('fade', 0.35))}, check=True)
-        else: subprocess.run([f'{TD}/.venv/bin/python', f'{TD}/vo/score.py', '900', M.get('mood', 'ghost'), str(M.get('seed', 12))], env={**os.environ, 'SCORE_INFO': f'{OUT}/score_info.json', 'SCORE_OUT': music, 'MUSIC_FADE': str(M.get('fade', 1.2))}, check=True)
+        json.dump(info, open(f'{OUT}/score_info.json', 'w', encoding='utf-8'), ensure_ascii=False)
+        _score_py = f'{TD}/.venv/bin/python' if os.path.exists(f'{TD}/.venv/bin/python') else sys.executable
+        if M.get('mood') == 'zombie': subprocess.run([_score_py, f'{ROOT}/tools/score_zombie.py'], env={**os.environ, 'SCORE_INFO': f'{OUT}/score_info.json', 'SCORE_OUT': music, 'MUSIC_FADE': str(M.get('fade', 0.35))}, check=True)
+        else: subprocess.run([_score_py, f'{TD}/vo/score.py', '900', M.get('mood', 'ghost'), str(M.get('seed', 12))], env={**os.environ, 'SCORE_INFO': f'{OUT}/score_info.json', 'SCORE_OUT': music, 'MUSIC_FADE': str(M.get('fade', 1.2))}, check=True)
     for nm, t, t2 in seg_snap: print(f'  snap music {nm}: {t:.3f} -> {t2:.3f} (cut)')
 
 # ---- remember this episode's own takes, so the next episode gets the same words for free ----
 own0 = dict(own)
 for b in lines:
+    if norm(sent_text(b)) != norm(b['text']): continue   # never pollute shared plain-text index with emotion-tagged `say` takes
     for ext in ('wav', 'mp3', 'flac'):
         if os.path.exists(f'{ROOT}/voice/{ID}/{b["id"]}.{ext}') and take_status(b) != 'stale': own[key(b.get('spk', b['who'].upper()), b['text'])] = f'voice/{ID}/{b["id"]}.{ext}'
-if own != own0: json.dump(own, open(OWN, 'w'), ensure_ascii=False, indent=0)
+if own != own0: json.dump(own, open(OWN, 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
 
 def lufs(f): return float([l for l in subprocess.run(['ffmpeg', '-v', 'info', '-i', f, '-af', 'ebur128', '-f', 'null', '-'], capture_output=True, text=True).stderr.splitlines() if l.strip().startswith('I:')][-1].split()[1])
 def f32wav(f, x):   # x: (2, n) float
@@ -605,20 +629,22 @@ else:
         spans[0] = (0.0, spans[0][1]); xf = 0.6; beds = np.zeros((2, N), np.float32); bedm = np.zeros(N, np.float32); names_ = []; use_stereo = False
         for i, (t0_, pl) in enumerate(spans):
             t1_ = spans[i + 1][0] if i + 1 < len(spans) else DUR; a0, a1 = max(0.0, t0_ - xf / 2), min(DUR, t1_ + xf / 2); kind = KIND.get(pl, 'street'); names_.append(f'{pl}:{kind}')
-            a_ = int(a0 * SR); fi = int(xf * SR)
+            a_ = int(a0 * SR)
             if (USE_REAL or RM == 'real') and sfx_lib.resolve_amb_name(kind):
                 use_stereo = True
                 x = sfx_lib.load_ambience_stereo(kind, a1 - a0, sr=SR); env_ = np.ones(x.shape[1], np.float32)
+                fi = min(int(xf * SR), max(1, len(env_) // 2))
                 if i > 0 and fi > 1: env_[:fi] = np.linspace(0, 1, fi)
                 if i + 1 < len(spans) and fi > 1: env_[-fi:] = np.minimum(env_[-fi:], np.linspace(1, 0, fi))
-                if i == 0: n0 = min(x.shape[1], int(0.05 * SR)); env_[:n0] = np.linspace(0, 1, n0)
+                if i == 0 and len(env_) > 1: n0 = min(len(env_), int(0.05 * SR)); env_[:n0] = np.linspace(0, 1, n0)
                 klen = min(N - a_, x.shape[1]); beds[:, a_:a_ + klen] += (x[:, :klen] * env_[None, :klen])
             else:
                 x = SFX(kind, a1 - a0 + 0.4, None)[:int((a1 - a0) * SR)]; env_ = np.ones(len(x), np.float32)
-                if i > 0: env_[:fi] = np.linspace(0, 1, fi)
-                if i + 1 < len(spans): env_[-fi:] = np.minimum(env_[-fi:], np.linspace(1, 0, fi))
-                if i == 0: env_[:int(0.05 * SR)] = np.linspace(0, 1, int(0.05 * SR))
-                bedm[a_:a_ + len(x)] += (x * env_)[:N - a_]
+                fi = min(int(xf * SR), max(1, len(env_) // 2))
+                if i > 0 and fi > 1: env_[:fi] = np.linspace(0, 1, fi)
+                if i + 1 < len(spans) and fi > 1: env_[-fi:] = np.minimum(env_[-fi:], np.linspace(1, 0, fi))
+                if i == 0 and len(env_) > 1: n0 = min(len(env_), int(0.05 * SR)); env_[:n0] = np.linspace(0, 1, n0)
+                klen = min(N - a_, len(x)); bedm[a_:a_ + klen] += (x[:klen] * env_[:klen])
         if not use_stereo: beds = np.stack([bedm, bedm]) * 0.7071
         tg = LV - float((B.get('room') or {}).get('below', 27.0) if isinstance(B.get('room'), dict) else 27.0); cur = AG.lu(np.mean(AG.power(beds)))
         room = beds * (10 ** ((tg - cur) / 20)); room_info = ', '.join(names_) + f' at {tg:.1f} LU' + (' (real)' if use_stereo else '')

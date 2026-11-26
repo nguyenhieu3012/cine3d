@@ -9,11 +9,11 @@
 //            and every ep.hits hit-stop. Loudness hint from the fx value.
 //   props    a free prop that was at rest, moved and came to rest again: `put` (set down gently), `drop` (arrived fast), `slide` (travelled mostly sideways). From mesh motion only.
 //   needsHook  event types that exist in the film but cannot be read without a core hook (listed in the file and printed).
-const { chromium } = require('playwright'), http = require('http'), fs = require('fs'), path = require('path');
-const ROOT = path.resolve(__dirname, '..'), args = process.argv.slice(2), flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.otf': 'font/otf' };
-const EPFILE = args.find((a) => /\.js$/.test(a) && !args[args.indexOf(a) - 1]?.startsWith('--'));
+const { chromium } = require('playwright'), fs = require('fs'), path = require('path'), { ROOT, GPU, READY_TIMEOUT, stripQuery, serve, flagOf } = require('./_page.cjs');
+const args = process.argv.slice(2), flag = flagOf(args);
+const EPFILE = args.find((a, i) => /\.js(&|\?|$)/.test(a) && !args[i - 1]?.startsWith('--'));
 if (!EPFILE) { console.log('usage: node tools/events.cjs episodes/<id>.js'); process.exit(2); }
+const EPPATH = stripQuery(EPFILE);
 const STEP = Number(flag('step', 1 / 60)), PSTEP = Number(flag('props', 0.05)), NOPROPS = args.includes('--no-props');
 const GAITK = ['walk', 'run', 'lurch', 'robot', 'charge', 'backaway'];
 const CONTACT_AT = { bite: 0.5, bitten: 0.5, trip: 0.4, fall: 1.0, pile: 0.8, tackle: 0.7, hit: 0.5, slap: 0.5 };   // fraction of the fx ramp at which the contact happens (a guess: the ramps are smooth-stepped)
@@ -33,7 +33,7 @@ async function pageInit([GAITK, NOPROPS]) {
   const PM = new Matrix4(), frustum = new Frustum(), box = new Box3(), _v = new V3();
   const visible = (o) => { while (o) { if (!o.visible) return false; o = o.parent; } return true; };
   const isTube = (m) => m.geometry.type === 'TubeGeometry' || m.userData.noodle;
-  const setFrame = (t) => { window.player.frame(document.getElementById('film').getContext('2d'), t, { overlays: false }); scene.updateMatrixWorld(true); cam.updateMatrixWorld(true); cam.updateProjectionMatrix(); PM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse.copy(cam.matrixWorld).invert()); frustum.setFromProjectionMatrix(PM); };
+  const setFrame = (t) => { window.player.frame(document.getElementById('film').getContext('2d'), t, { overlays: false, noRender: true }); scene.updateMatrixWorld(true); cam.updateMatrixWorld(true); cam.updateProjectionMatrix(); PM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse.copy(cam.matrixWorld).invert()); frustum.setFromProjectionMatrix(PM); };
   const gaitW = (who, t) => { const f = fxAt(who, t); return GAITK.reduce((s, k) => s + (f[k] || 0), 0); };
   // which unit meshes are feet: small, not a limb tube, near the lowest point of the unit (found once per unit at the first frame it is walking)
   const feetOf = (u) => {
@@ -45,7 +45,7 @@ async function pageInit([GAITK, NOPROPS]) {
   const botOf = (list) => { let y = 1e9; for (const m of list) { box.setFromObject(m); if (box.min.y < y) y = box.min.y; } return y; };
   // ---- feet: windows where anybody has gait weight, sampled at STEP ----
   window.__ev = {
-    info: () => ({ dur: ep.dur, units: units.map((u) => u.name), places: ep.setOpts?.places || [], acts: ep.acts.length }),
+    info: () => ({ dur: ep.dur, units: units.map((u) => u.name), places: ep.setOpts?.places || [], acts: (ep.acts || []).length }),
     gaitWindows: () => { const W = {}; const names = [...new Set(units.map((u) => u.char))]; for (const n of names) { let on = null; const a = []; for (let t = -0.5; t <= ep.dur + 0.5; t += 0.05) { const w = gaitW(n, t) > 0.05; if (w && on === null) on = t; if (!w && on !== null) { a.push([Math.max(0, on - 0.1), t + 0.1]); on = null; } } if (on !== null) a.push([Math.max(0, on - 0.1), ep.dur]); W[n] = a; } return W; },
     feet: (n, t0, t1, step) => {   // samples of one character (all its units): per unit per side the bottom of the foot, ground speed, gait weights, in view
       const out = []; const us = units.filter((u) => u.char === n), F = new Map(); const prev = new Map();
@@ -65,11 +65,11 @@ async function pageInit([GAITK, NOPROPS]) {
 }
 
 (async () => {
-  const srv = await new Promise((res) => { const s = http.createServer((req, rsp) => { const f = path.join(ROOT, decodeURIComponent(req.url.split('?')[0])); fs.readFile(f, (e, d) => { if (e) { rsp.writeHead(404); return rsp.end(); } rsp.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' }); rsp.end(d); }); }); s.listen(0, () => res(s)); });
-  const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] }), p = await b.newPage({ viewport: { width: 540, height: 960 } }); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
-  await p.goto(`http://localhost:${srv.address().port}/index.html?render=1&ep=${EPFILE}`); await p.waitForFunction(() => window.filmReady, null, { timeout: 60000 });
+  const srv = await serve();
+  const b = await chromium.launch({ args: GPU }), p = await b.newPage({ viewport: { width: 540, height: 960 } }); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${srv.address().port}/index.html?render=1&nowarm=1&ep=${EPFILE}`); await p.waitForFunction(() => window.filmReady, null, { timeout: READY_TIMEOUT });
   const T0 = Date.now(), info2 = await p.evaluate(pageInit, [GAITK, NOPROPS]);
-  const id = path.basename(EPFILE, '.js'), ep = (await import(require('url').pathToFileURL(path.resolve(EPFILE)).href)).default;
+  const id = path.basename(EPPATH, '.js'), ep = (await import(require('url').pathToFileURL(path.resolve(EPPATH)).href)).default;
   const places = (info2.places || []).map((x) => ({ t: +(+x.t).toFixed(3), place: x.place })), placeAt = (t) => { let r = ep.set || null; for (const x of places) if (x.t <= t + 1e-6) r = x.place; return r; };
   const out = { id, dur: info2.dur, step: STEP, places, set: ep.set || null, feet: [], actions: [], props: [], needsHook: [] };
   // ---- feet ----

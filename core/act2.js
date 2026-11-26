@@ -42,11 +42,11 @@ export const ACT2 = {
 // Springs. A pose change is a step in the hand target, softened by a short cosine ramp (W) so the start is not a jolt; the answer of a damped spring to that
 // ramped step is tabled ONCE (480 Hz, numeric convolution of the closed-form step response with the ramp) and looked up by time: a pure function of tau.
 const SETTLE = 2.3;                                   // s: after this a response is exactly 1
-const stepR = (tau, f, z) => { if (tau <= 0) return 0; const w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * tau) * (Math.cos(wd * tau) + (z * w / wd) * Math.sin(wd * tau)); };
+const stepR = (tau, f, z) => { if (tau <= 0) return 0; const zc = Math.min(z, 0.999), w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - zc * zc); return 1 - Math.exp(-zc * w * tau) * (Math.cos(wd * tau) + (zc * w / wd) * Math.sin(wd * tau)); };
 const mkTab = (f, z, W) => { const dt = 1 / 480, n = Math.ceil(SETTLE / dt) + 1, T = new Float64Array(n), M = 24; for (let i = 0; i < n; i++) { let a = 0; for (let j = 0; j < M; j++) { const u0 = j / M, u1 = (j + 1) / M, w = 0.5 - 0.5 * Math.cos(Math.PI * u1) - (0.5 - 0.5 * Math.cos(Math.PI * u0)); a += w * stepR(i * dt - (u0 + u1) / 2 * W, f, z); } T[i] = a; } T.dt = dt; return T; };
 const tabAt = (T, tau) => { if (tau <= 0) return 0; const x = tau / T.dt, i = Math.floor(x); if (i >= T.length - 1) return 1; return T[i] + (T[i + 1] - T[i]) * (x - i); };
 const resp = (tau, h, amt) => (h.old ? overshoot(tau / 0.34, 0.07) : tau <= -h.lead ? 0 : tau >= SETTLE ? 1 : (1 + amt) * tabAt(h.tab, tau) - amt * tabAt(h.tab, tau + h.lead));
-const kernel = (f, z, dt, len) => { const w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - z * z), n = Math.ceil(len / dt), k = new Float64Array(n); let s = 0; for (let j = 0; j < n; j++) { k[j] = Math.exp(-z * w * j * dt) * Math.sin(wd * j * dt); s += k[j]; } for (let j = 0; j < n; j++) k[j] /= s; return k; };
+const kernel = (f, z, dt, len) => { const zc = Math.min(z, 0.999), w = 2 * Math.PI * f, wd = w * Math.sqrt(1 - zc * zc), n = Math.ceil(len / dt), k = new Float64Array(n); let s = 0; for (let j = 0; j < n; j++) { k[j] = Math.exp(-zc * w * j * dt) * Math.sin(wd * j * dt); s += k[j]; } for (let j = 0; j < n; j++) k[j] /= s || 1; return k; };
 const CONTACT = new Set(['phone', 'cross', 'cup', 'chin', 'head', 'facepalm', 'hug', 'cover', 'grip', 'beg', 'clasp', 'gag', 'ticket', 'drive']);
 const TABLE = { top: 0.4775, x: [-0.43, 0.43], z: [0.17, 0.67] };   // the stall table (world), packs/trada/stall.js
 const bsearch = (arr, x) => { let a = 0, b = arr.length; while (a < b) { const m = (a + b) >> 1; if (arr[m].t < x) a = m + 1; else b = m; } return a; };
@@ -60,7 +60,8 @@ export function makeAct2({ ep, cast, names, lines, track, talkOf, spkK, fxAt }) 
   // ---- order-free look angles (see pose()) ----
   const hy0 = {}; for (const n of names) hy0[n] = cast[n].headY;
   const _hp = new THREE.Vector3(), _tp = new THREE.Vector3(), _v = new THREE.Vector3(), _q = new THREE.Quaternion(), api = { camUsed: false };
-  const headC = (c, out, t) => c.root.localToWorld(out.set(0, hy0[c.name] + 0.36 * clamp((fxAt(c.name, t).stand ?? ep.castOpts?.[c.name]?.stand ?? 0)), 0));
+  const liftOf = (c) => (c.stand ? 0 : (c.standLift ?? (c.faces?.neutral && 'h' in c.faces.neutral && !('eye' in c.faces.neutral) ? 0.15 : 0.36)));
+  const headC = (c, out, t) => c.root.localToWorld(out.set(0, hy0[c.name] + liftOf(c) * clamp((fxAt(c.name, t).stand ?? ep.castOpts?.[c.name]?.stand ?? 0)), 0));
   const targetC = (c, what, camPos, t) => { const other = cast[ep.partners?.[c.name]] || cast[names.find((n) => n !== c.name)];
     if (what === 'cam') { api.camUsed = true; return _tp.copy(camPos); }
     if (what === 'down') return headC(c, _tp, t).add(_v.set(0, -0.5, 0.6).applyQuaternion(c.root.getWorldQuaternion(_q)));
@@ -161,13 +162,13 @@ export function makeAct2({ ep, cast, names, lines, track, talkOf, spkK, fxAt }) 
     out.pitch -= headB * K.beat.head * G;                                  // a small head accent on the stress (a dip)
     // ---- listening: nods on the partner's stresses, a tilt, an occasional glance ----
     let glY = 0, glX = 0, glP = 0;
-    if (on('listen')) { const nl = nodsOf[n] || []; for (let i = bsearch(nl, t - 0.5); i < nl.length && nl[i].t < t + 0.05; i++) { const d = t - nl[i].t; if (d < 0 || d > 0.45) continue; const w = Math.sin(Math.PI * d / 0.45); out.pitch -= K.nodAmp * nl[i].amp * w * w * G; }
+    if (on('listen')) { const nl = nodsOf[n] || []; for (let i = bsearch(nl, tReal - 0.5); i < nl.length && nl[i].t < tReal + 0.05; i++) { const d = tReal - nl[i].t; if (d < 0 || d > 0.45) continue; const w = Math.sin(Math.PI * d / 0.45); out.pitch -= K.nodAmp * nl[i].amp * w * w * G; }
       out.roll += K.tilt * lw * noise1(t / 6.3 + seed, 11) * G;
       const cell = K.glanceCell, kc = Math.floor(t / cell + seed * 0.07), gs = (kc + 0.1 + 0.6 * hash(kc * 3.3 + seed)) * cell - seed * 0.07 * cell, dur = 0.5 + 0.5 * hash(kc * 1.7 + seed), act = hash(kc * 9.1 + seed * 2.3) < K.glanceProb ? 1 : 0, dirn = hash(kc * 2.9 + seed) > 0.5 ? 1 : -1;
       const gE = (x) => (x <= 0 || x >= dur ? 0 : Math.sin(Math.PI * x / dur) ** 2); glY = act * dirn * gE(t - gs) * lw; glX = act * dirn * gE(t + 0.07 - gs) * lw; glP = act * gE(t - gs) * lw; out.yaw += glY * K.glance * G; out.pitch += glP * 0.02 * G;
       if (out.face && on('face')) { out.face.px = (out.face.px || 0) + glX * K.glanceEye; out.face.py = (out.face.py || 0) - glP * 0.2; } }
     // ---- blink on gaze changes (the drawn faces stay as they are; the lid number only goes down) ----
-    if (on('face') && out.face) { const gz = gazeOf[n] || []; let bk = 0; for (let i = bsearch(gz, t - 0.2); i < gz.length && gz[i].t < t; i++) { const x = t - gz[i].t; bk = Math.max(bk, x < 0 || x > 0.16 ? 0 : x < 0.06 ? x / 0.06 : 1 - (x - 0.06) / 0.1); }
+    if (on('face') && out.face) { const gz = gazeOf[n] || []; let bk = 0; for (let i = bsearch(gz, tReal - 0.2); i < gz.length && gz[i].t < tReal; i++) { const x = tReal - gz[i].t; bk = Math.max(bk, x < 0 || x > 0.16 ? 0 : x < 0.06 ? x / 0.06 : 1 - (x - 0.06) / 0.1); }
       if (bk > 0) { if (typeof out.face.eye === 'number') out.face.eye *= 1 - bk; if (typeof out.face.h === 'number') out.face.h *= 1 - 0.9 * bk; } }
     // ---- always: breathing and a slow lean drift (the engine's own breath and idle stay) ----
     D.leanAdd = out.lean - leanAdd0;   // what the layer added to the lean; post() lifts the seat by the toes' drop
@@ -178,7 +179,7 @@ export function makeAct2({ ep, cast, names, lines, track, talkOf, spkK, fxAt }) 
   // after c.apply(): the weight shift on the seat. The body group moves a little sideways and rolls the other way (apply() resets both every frame, so this never accumulates).
   // before c.apply(): Bíp's apply never writes body.position.x, so the offset of the last frame is taken out first (the offset is then always added to the same base)
   // before the first camera solve of a frame: every character back to its build-time rest state (the pose is then written by apply() as always), so nothing of the frame drawn before is seen
-  function reset() { for (const n of who) { const c = cast[n], D = S[n]; c.body.position.set(D.x0, D.y0, D.z0); c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0); c.head.position.y = D.hy; } }
+  function reset() { for (const n of who) { const c = cast[n], D = S[n]; if (c.rig) { c.rig.position.set(0, 0, 0); c.rig.rotation.set(0, 0, 0); } c.body.position.set(D.x0, D.y0, D.z0); c.body.rotation.set(0, 0, 0); c.head.rotation.set(0, 0, 0); c.head.position.y = D.hy; } }
   function pre(c) { const D = S[c.name]; if (D) c.body.position.x = D.x0; }
   function post(c, t, standing, out) { const D = S[c.name]; if (!D) return;
     // the look was aimed from the rest frame; whatever else turned or tilted the body inside apply() (a gloat, a lean into a run) is taken out of the head, as the engine's stale-frame look used to do

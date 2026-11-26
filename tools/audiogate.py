@@ -53,12 +53,15 @@ def readwav(f):
     return np.frombuffer(subprocess.run(['ffmpeg', '-v', 'error', '-i', f, '-ac', '2', '-ar', str(SR), '-f', 'f32le', '-'], capture_output=True, check=True).stdout, np.float32).reshape(-1, 2).T.astype(np.float64)
 def ebur(f):
     r = subprocess.run(['ffmpeg', '-v', 'info', '-nostats', '-i', f, '-af', 'ebur128=peak=true', '-f', 'null', '-'], capture_output=True, text=True).stderr
-    i = [l for l in r.splitlines() if l.strip().startswith('I:')][-1].split()[1]; p = [l for l in r.splitlines() if l.strip().startswith('Peak:')][-1].split()[1]
-    return float(i), float(p)
+    il = [l for l in r.splitlines() if l.strip().startswith('I:')]
+    pl = [l for l in r.splitlines() if l.strip().startswith('Peak:')]
+    if not il or not pl:
+        raise RuntimeError(f'ebur128 parse failed on {f}: {r[-240:].strip()}')
+    return float(il[-1].split()[1]), float(pl[-1].split()[1])
 def spark(vals, lo, hi):
     ramp = '_.,:-=+*#%@'; return ''.join(ramp[int(round((min(max(v, lo), hi) - lo) / max(hi - lo, 1e-9) * (len(ramp) - 1)))] for v in vals)
 
-IMPACT_OK = ACCENT + ('pop', 'ting', 'ding_idea', 'msg_in', 'voice_note')   # f: effects that count as the sound of an `impact` beat (light accents included)
+IMPACT_OK = ACCENT + ('pop', 'ting', 'ding_idea', 'msg_in', 'voice_note', 'kaching', 'tingting', 'clink', 'shutter', 'alarm_low', 'glitch')   # f: effects that count as the sound of an `impact` beat (real audio_lib & light accents included)
 STEMS = ('stem_voice.wav', 'stem_music.wav', 'stem_effects.wav')
 def segments(beats, TL, DUR):   # one contiguous time segment per beat: from the end of the one before to this beat's end (the last one runs to DUR)
     segs = []; prev = 0.0
@@ -98,18 +101,18 @@ def check_e(beats, TL, DUR, cb, tens, shift=0.0, cm=None):   # check e on a cumu
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]; strict = '--strict' in sys.argv
     if not args: sys.exit(__doc__)
-    path = args[0]; B = json.load(open(path)); ID = B['id']; A = f'{ROOT}/out/{ID}/audio'
+    path = args[0]; B = json.load(open(path, encoding='utf-8')); ID = B['id']; A = f'{ROOT}/out/{ID}/audio'
     have_stems = all(os.path.exists(f'{A}/{n}') for n in STEMS)
     for need in ('times.json', 'mix.wav') + (() if have_stems else ('vo_all.wav', 'sfx.wav')):
         if not os.path.exists(f'{A}/{need}'): sys.exit(f'AUDIO FAIL (1)\n  missing {A}/{need}: run tools/voice.py build {path} first')
-    T = json.load(open(f'{A}/times.json')); TL = T['lines']; DUR = T['dur']; beats = B['beats']; lines = [b for b in beats if 'text' in b]
+    T = json.load(open(f'{A}/times.json', encoding='utf-8')); TL = T['lines']; DUR = T['dur']; beats = B['beats']; lines = [b for b in beats if 'text' in b]
     res = []   # (letter, name, ok or None (info), text, reason)
     skipped = []   # checks (or halves of a check) that could not run: printed in the verdict so a skip never reads as a pass
     def R(k, name, ok, text, why): res.append((k, name, ok, text, why))
     def when(ref):
         if isinstance(ref, (int, float)): return float(ref)
         i, _, e = ref.partition('.'); return TL[i]['t1' if e == 'end' else 't0']
-    try: placed = json.load(open(f'{A}/sfx_placed.json'))   # [{name, t, src}] every effect as voice.py placed it (snapped, auto accents, foley)
+    try: placed = json.load(open(f'{A}/sfx_placed.json', encoding='utf-8'))   # [{name, t, src}] every effect as voice.py placed it (snapped, auto accents, foley)
     except Exception: placed = None
 
     if have_stems:   # the three buses exactly as voice.py mixed them (already at the gain of the real mix)
@@ -176,10 +179,10 @@ def main():
     # ---- d. dead air ----
     intended = [(TL[b['id']]['t0'], TL[b['id']]['t1']) for b in beats if b.get('silence') and b['id'] in TL]
     try:
-        si = json.load(open(f'{A}/score_info.json')); sg = sorted(si.get('segs', []), key=lambda s: s['t']); ends = [s['t'] for s in sg[1:]] + [DUR]
+        si = json.load(open(f'{A}/score_info.json', encoding='utf-8')); sg = sorted(si.get('segs', []), key=lambda s: s['t']); ends = [s['t'] for s in sg[1:]] + [DUR]
         intended += [(s['t'], e) for s, e in zip(sg, ends) if s.get('seg') == 'silence' and 'kind' not in s]   # the zombie score's own `silence` section is a marker too
     except Exception: pass
-    pm = power(mix); hop = int(0.05 * SR); blk = int(0.1 * SR); cmx = cum(pm); st = np.arange(0, len(pm) - blk, hop); lev = lu((cmx[st + blk] - cmx[st]) / blk); quiet = lev < SILENCE_FLOOR
+    pm = power(mix); hop = int(0.05 * SR); blk = int(0.1 * SR); cmx = cum(pm); st = np.arange(0, max(0, len(pm) - blk), hop); lev = lu((cmx[st + blk] - cmx[st]) / blk) if len(st) else np.array([], dtype=np.float64); quiet = lev < SILENCE_FLOOR
     for i, s0 in enumerate(st):
         t = s0 / SR + 0.05
         if any(a <= t <= e for a, e in intended): quiet[i] = False
@@ -191,7 +194,10 @@ def main():
             runs.append((st[i] / SR, st[j] / SR + 0.1)); i = j + 1
         else: i += 1
     longq = [(a, e) for a, e in runs if e - a > SILENCE_MAX]
-    R('d', 'dead_air', not longq, f'{len(longq)} stretches over {SILENCE_MAX:.1f} s below {SILENCE_FLOOR:.0f} LUFS' + (': ' + ', '.join(f'{a:.2f}-{e:.2f}' for a, e in longq[:6]) if longq else '') + f'; quietest block {lev.min():.1f} LUFS; intended windows {len(intended)}', 'a stretch of nothing makes the viewer think the video froze; mark deliberate silence with "silence": true on the beat')
+    earlyq = [(a, min(e, 10.0)) for a, e in runs if a < 10.0 and min(e, 10.0) - a > 0.5]
+    quietest = float(lev.min()) if len(lev) else -120.0
+    dead_ok = (not longq) and (not earlyq if strict else True)
+    R('d', 'dead_air', dead_ok, f'{len(longq)} stretches over {SILENCE_MAX:.1f} s below {SILENCE_FLOOR:.0f} LUFS' + (': ' + ', '.join(f'{a:.2f}-{e:.2f}' for a, e in longq[:6]) if longq else '') + (f'; early 0-10 s silence > 0.5 s: ' + ', '.join(f'{a:.2f}-{e:.2f}' for a, e in earlyq[:4]) if earlyq else '') + f'; quietest block {quietest:.1f} LUFS; intended windows {len(intended)}', 'a stretch of nothing makes the viewer think the video froze (especially in the first 10 s); mark deliberate silence with "silence": true on the beat')
 
     # ---- e. tension follows sound ----
     tens, ngiven = tension_list(beats); have_t = tens is not None; segs = segments(beats, TL, DUR)
@@ -203,10 +209,10 @@ def main():
         R('e', 'tension_follows_sound', E['ok'], f"peak tension {tens[pk]:g} at beat {beats[pk]['id']} ({segs[pk][0]:.1f}-{segs[pk][1]:.1f} s) bed {bedL[pk]:.1f} LUFS; " + (f'{over:.1f} LU over quiet mean ({len(E["low"])} quiet segments' + (f'; music bus alone {E["music_over"]:+.1f} LU' if E['music_over'] is not None else '') + '); ' if over is not None else '') + (f'{dip:.1f} LU over the segment before' if dip is not None else '') + (f'; only {ngiven} of {len(beats)} beats carry a tension value, the rest carry the value before them' if ngiven < len(beats) else '') + ('; ' + '; '.join(why) if why else ''), 'drama is loudness contrast: the biggest moment must be louder than the quiet ones and preceded by a dip')
 
     # ---- f. hits on cuts and impacts ----
-    names = set(re.findall(r"name == '(\w+)'", open(f'{ROOT}/tools/voice.py').read())); acc = sorted(set(ACCENT) & names) + [x for x in ('sting', 'boom') if x not in names]
+    names = set(re.findall(r"name == '(\w+)'", open(f'{ROOT}/tools/voice.py', encoding='utf-8').read())); acc = sorted(set(ACCENT) & names) + [x for x in ('sting', 'boom') if x not in names]
     if placed is not None: events = [(p['t'], p['name']) for p in placed if p['name'] in IMPACT_OK]
     else: events = [(when(s['ref']) + s.get('off', 0), s['name']) for s in B.get('sfx', []) if s['name'] in IMPACT_OK]
-    try: events += [(s['t'], s['seg']) for s in json.load(open(f'{A}/score_info.json')).get('segs', []) if s.get('seg') in ('sting', 'boom', 'hit')]
+    try: events += [(s['t'], s['seg']) for s in json.load(open(f'{A}/score_info.json', encoding='utf-8')).get('segs', []) if s.get('seg') in ('sting', 'boom', 'hit')]
     except Exception: pass
     cuts, hits = None, []; epf = f'{ROOT}/episodes/{ID}.js'
     if os.path.exists(epf):
@@ -248,6 +254,6 @@ def main():
         speaking = v > -45; w(f'| {a:5.1f} | {tn} | {v:.1f} | {win(cm, a, e):.1f} | {win(cs, a, e):.1f} | {bd:.1f} | {("%.1f" % (v - bd)) if speaking else "-"} | `{"#" * max(0, int((bd + 50) / 2))}` |')
     w('\n## Per line\n\n| line | t0-t1 | voice | bed max | margin | ok |\n|---|---|---|---|---|---|')
     for i, a, e, v, bd, mg in rows: w(f'| {i} | {a:.2f}-{e:.2f} | {v:.1f} | {bd:.1f} | {mg:.1f} | {"yes" if mg >= MARGIN_MIN else "NO"} |')
-    open(f'{od}/audio_report.md', 'w').write('\n'.join(L) + '\n')
+    open(f'{od}/audio_report.md', 'w', encoding='utf-8').write('\n'.join(L) + '\n')
     sys.exit(1 if nfail else 0)
 if __name__ == '__main__': main()

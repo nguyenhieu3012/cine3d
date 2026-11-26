@@ -9,7 +9,7 @@ const DISP = 'Display, sans-serif', UI = 'UI, sans-serif', TAU = Math.PI * 2;
 const sm = (x) => { x = clamp(x); return x * x * (3 - 2 * x); };
 const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 // copy of the picture drawn so far (for filters / strips); one scratch canvas reused
-const snap = (ctx) => { const c = snap._c ||= Object.assign(document.createElement('canvas'), { width: 1080, height: 1920 }); const g = c.getContext('2d'); g.clearRect(0, 0, 1080, 1920); if (ONLY.on) { ONLY.flags.push({ kind: ONLY.cur, sample: 'picture' }); return c; } g.drawImage(ctx.canvas, 0, 0); return c; };   // ONLY.on (overlay-only export): there is no picture to copy, the sampled part stays empty
+const snap = (ctx) => { const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920; if (!snap._c || snap._c.width !== CW || snap._c.height !== CH) snap._c = Object.assign(document.createElement('canvas'), { width: CW, height: CH }); const c = snap._c, g = c.getContext('2d'); g.clearRect(0, 0, CW, CH); if (ONLY.on) { ONLY.flags.push({ kind: ONLY.cur, sample: 'picture' }); return c; } g.drawImage(ctx.canvas, 0, 0); return c; };   // ONLY.on (overlay-only export): there is no picture to copy, the sampled part stays empty
 // ChatGPT mark (black disc, six white interlocking bars), same drawing as the old engine's gptLogo
 export function gptMark(ctx, x, y, r = 52) {
   ctx.save(); ctx.translate(x, y); ctx.scale(r / 55, r / 55); ctx.beginPath(); ctx.arc(0, 0, 58, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill(); ctx.beginPath(); ctx.arc(0, 0, 55, 0, TAU); ctx.fillStyle = '#111'; ctx.fill();
@@ -22,19 +22,20 @@ export function gptMark(ctx, x, y, r = 52) {
 // The picture is black (or o.color) except a soft circle. o: { at: [fx, fy] (frame fractions) | who (+ side: -1 / 0 / +1 = left eye / between / right eye as seen on screen, eyeUp: extra rise in head radii, dx, dy px: the eye line of that character), r: [[t, px], ...] radius keyframes (smoothstep between them; r <= 0 = all black; > 1400 = all open),
 // soft (edge softness, 0.18 = 18 % of r), color ('#000'), breathe (px amplitude of a slow 0.45 Hz swell, 0), inner ('#fff': the disc itself is this colour instead of the picture), innerFade: [t0, t1] (the inner colour fades out and shows the picture) }
 export function iris(ctx, o, t, ep, cast, camera) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, CY = CH / 2;
   const keys = o.r || [[o.t0, 0], [o.t1, 1500]]; let r = keys[0][1]; if (t >= keys[keys.length - 1][0]) r = keys[keys.length - 1][1]; else for (let i = 0; i < keys.length - 1; i++) { const [a, ra] = keys[i], [b, rb] = keys[i + 1]; if (t >= a && t < b) { r = lerp(ra, rb, sm((t - a) / (b - a))); break; } }
   if (o.breathe && r > 20 && r < 1400) r += o.breathe * Math.sin((t - o.t0) * 2.8);
-  const col = o.color || '#000'; let cx = 540, cy = 960;
-  if (o.at) { cx = o.at[0] * 1080; cy = o.at[1] * 1920; }
-  else if (o.who && cast[o.who] && camera) { const c = cast[o.who], h = c.headWorld().clone().add(camera.up.clone().multiplyScalar((c.eyeUp || 0) + (o.eyeUp ?? 0) * c.R)).add(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar((o.side ?? 0) * c.R * 0.32)), p = project(camera, h, 1080, 1920); cx = p[0] + (o.dx ?? 0); cy = p[1] + (o.dy ?? 0); }
+  const col = o.color || '#000'; let cx = CX, cy = CY;
+  if (o.at) { cx = o.at[0] * CW; cy = o.at[1] * CH; }
+  else if (o.who && cast[o.who] && camera) { const c = cast[o.who], h = c.headWorld().clone().add(camera.up.clone().multiplyScalar((c.eyeUp || 0) + (o.eyeUp ?? 0) * c.R)).add(new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar((o.side ?? 0) * c.R * 0.32)), p = project(camera, h, CW, CH); cx = p[0] + (o.dx ?? 0); cy = p[1] + (o.dy ?? 0); }
   const inner = o.inner ? 1 - (o.innerFade ? sm((t - o.innerFade[0]) / (o.innerFade[1] - o.innerFade[0])) : 0) : 0;
   if (r >= 1400 && inner <= 0) return;
   ctx.save();
-  if (r <= 1) { ctx.fillStyle = col; ctx.fillRect(0, 0, 1080, 1920); ctx.restore(); return; }
+  if (r <= 1) { ctx.fillStyle = col; ctx.fillRect(0, 0, CW, CH); ctx.restore(); return; }
   const soft = Math.max(2, r * (o.soft ?? 0.18)), g = ctx.createRadialGradient(cx, cy, Math.max(0, r - soft), cx, cy, r + soft);
   // gradient colours: transparent inside, solid outside (the colour is parsed once through a 1 px canvas so any CSS colour works)
   const rgb = (iris._p ||= {})[col] ||= (() => { const c = document.createElement('canvas'); c.width = c.height = 1; const x = c.getContext('2d'); x.fillStyle = col; x.fillRect(0, 0, 1, 1); const d = x.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; })();
-  g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(1, `rgba(${rgb},1)`); ctx.fillStyle = g; ctx.fillRect(0, 0, 1080, 1920);
+  g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(1, `rgba(${rgb},1)`); ctx.fillStyle = g; ctx.fillRect(0, 0, CW, CH);
   if (inner > 0) { const rr = o.inner, gi = ctx.createRadialGradient(cx, cy, Math.max(0, r - soft), cx, cy, r + soft); gi.addColorStop(0, rr); gi.addColorStop(1, 'rgba(0,0,0,0)'); ctx.globalAlpha = inner; ctx.fillStyle = gi; ctx.fillRect(cx - r - soft, cy - r - soft, 2 * (r + soft), 2 * (r + soft)); }
   ctx.restore();
 }
@@ -43,22 +44,25 @@ export function iris(ctx, o, t, ep, cast, camera) {
 // Tape-rewind look over a held pose: colour drains, slow horizontal tear bands slide, a clock hand turns backwards, a big card.
 // o: { text: '24 GIỜ TRƯỚC', sub, y (card centre, 1010), clockY (520), clock: true, bands (7), drain (0.85), tint ('#7aa0ff') }
 export function freeze_rewind(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
   const k = easeOut((t - o.t0) / 0.35) * clamp((o.t1 - t) / 0.25); if (k <= 0) return; const u = t - o.t0;
   const src = snap(ctx);
-  ctx.save(); ctx.filter = `grayscale(${(o.drain ?? 0.85) * k}) contrast(${1 + 0.08 * k}) brightness(${1 - 0.1 * k})`; ctx.drawImage(src, 0, 0); ctx.restore();
-  // cold wash + scan lines (static texture, only the bands move)
-  ctx.save(); ctx.globalAlpha = 0.16 * k; ctx.fillStyle = o.tint || '#7aa0ff'; ctx.fillRect(0, 0, 1080, 1920); ctx.globalAlpha = 0.07 * k; ctx.fillStyle = '#000'; for (let y = 0; y < 1920; y += 6) ctx.fillRect(0, y, 1080, 2); ctx.restore();
-  // tear bands: each slides slowly downwards (a tape rewinding), shifted sideways by a slow wave, with a faint bright edge
-  const N = o.bands ?? 7;
-  for (let i = 0; i < N; i++) {
-    const ph = ((i / N + u * (0.11 + 0.03 * hash(i)) + hash(i + 9)) % 1 + 1) % 1, y = ph * 2100 - 100, h = 26 + 70 * hash(i + 3), dx = Math.sin(u * 1.1 + i * 2.3) * (26 + 36 * hash(i + 5)) * k;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, y, 1080, h); ctx.clip(); ctx.filter = `grayscale(1) brightness(1.15)`; ctx.drawImage(src, dx, 0); ctx.restore();
-    ctx.save(); ctx.globalAlpha = 0.22 * k; ctx.fillStyle = '#e8f0ff'; ctx.fillRect(0, y, 1080, 3); ctx.restore();
+  if (!ONLY.on) {
+    ctx.save(); ctx.filter = `grayscale(${(o.drain ?? 0.85) * k}) contrast(${1 + 0.08 * k}) brightness(${1 - 0.1 * k})`; ctx.drawImage(src, 0, 0); ctx.restore();
+    // cold wash + scan lines (static texture, only the bands move)
+    ctx.save(); ctx.globalAlpha = 0.16 * k; ctx.fillStyle = o.tint || '#7aa0ff'; ctx.fillRect(0, 0, CW, CH); ctx.globalAlpha = 0.07 * k; ctx.fillStyle = '#000'; for (let y = 0; y < CH; y += 6) ctx.fillRect(0, y, CW, 2); ctx.restore();
+    // tear bands: each slides slowly downwards (a tape rewinding), shifted sideways by a slow wave, with a faint bright edge
+    const N = o.bands ?? 7;
+    for (let i = 0; i < N; i++) {
+      const ph = ((i / N + u * (0.11 + 0.03 * hash(i)) + hash(i + 9)) % 1 + 1) % 1, y = ph * (CH + 180) - 100, h = 26 + 70 * hash(i + 3), dx = Math.sin(u * 1.1 + i * 2.3) * (26 + 36 * hash(i + 5)) * k;
+      ctx.save(); ctx.beginPath(); ctx.rect(0, y, CW, h); ctx.clip(); ctx.filter = `grayscale(1) brightness(1.15)`; ctx.drawImage(src, dx, 0); ctx.restore();
+      ctx.save(); ctx.globalAlpha = 0.22 * k; ctx.fillStyle = '#e8f0ff'; ctx.fillRect(0, y, CW, 3); ctx.restore();
+    }
   }
   ctx.save(); ctx.globalAlpha = k;
   // clock face, hand running backwards (the long hand a full turn in about 2.2 s, the short one 12 times slower)
   if (o.clock !== false) {
-    const cy = o.clockY ?? 520, R = 190; ctx.translate(540, cy); ctx.globalAlpha = k * 0.95;
+    const cy = o.clockY ?? (wide ? 320 : 520), R = 190; ctx.translate(CX, cy); ctx.globalAlpha = k * 0.95;
     ctx.fillStyle = 'rgba(14,16,30,0.78)'; ctx.beginPath(); ctx.arc(0, 0, R + 18, 0, TAU); ctx.fill(); ctx.fillStyle = '#eef2ff'; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
     ctx.strokeStyle = '#1a1d33'; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke(); ctx.lineCap = 'round';
     for (let i = 0; i < 12; i++) { const a = i * TAU / 12; ctx.lineWidth = i % 3 ? 7 : 12; ctx.beginPath(); ctx.moveTo(Math.sin(a) * (R - 18), -Math.cos(a) * (R - 18)); ctx.lineTo(Math.sin(a) * (R - (i % 3 ? 34 : 44)), -Math.cos(a) * (R - (i % 3 ? 34 : 44))); ctx.stroke(); }
@@ -72,7 +76,7 @@ export function freeze_rewind(ctx, o, t) {
   ctx.restore();
   if (o.text) { // card
     const kk = easeOut((t - o.t0 - 0.1) / 0.28) * clamp((o.t1 - t) / 0.2); if (kk > 0) {
-      ctx.save(); ctx.translate(540, (o.y ?? 1010) + (1 - kk) * 30); ctx.scale(lerp(0.9, 1, kk), lerp(0.9, 1, kk)); ctx.globalAlpha = clamp(kk * 1.4); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.save(); ctx.translate(CX, (o.y ?? (wide ? 700 : 1010)) + (1 - kk) * 30); ctx.scale(lerp(0.9, 1, kk), lerp(0.9, 1, kk)); ctx.globalAlpha = clamp(kk * 1.4); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const size = fitText(ctx, o.text, 860, 118, 900, 60), w = Math.min(960, ctx.measureText(o.text).width + 110), h = size + 96 + (o.sub ? 70 : 0);
       ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12; ctx.fillStyle = 'rgba(12,14,32,0.93)'; ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 36); ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = o.color || '#ffc531'; ctx.lineWidth = 8; ctx.stroke();
       ctx.fillStyle = o.color || '#ffc531'; ctx.fillText(o.text, 0, o.sub ? -34 : 4); if (o.sub) { ctx.font = `800 52px ${UI}`; ctx.fillStyle = '#e8ecff'; ctx.fillText(o.sub, 0, 54); } ctx.restore(); } }
@@ -81,41 +85,46 @@ export function freeze_rewind(ctx, o, t) {
 // ---------------------------------------------------------------- title
 // Full-black card, large text. o: { text: 'TO BE CONTINUED' | [lines], sub, style: 'cont' (default: big white, yellow rule) | 'end' (quiet end card: soft cream, thin rule, no plate, no icon), y (centre 900), size, fade (0.35), color }
 export function title(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
   const kin = sm((t - o.t0) / (o.fade ?? 0.35)), kout = clamp((o.t1 - t) / 0.2); if (kin <= 0) return;
-  ctx.save(); ctx.globalAlpha = clamp(kin * kout); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1080, 1920);
-  const end = o.style === 'end', lines = [].concat(o.text), size0 = o.size ?? (end ? 84 : 124), y = o.y ?? (end ? 930 : 900);
+  ctx.save(); ctx.globalAlpha = clamp(kin * kout); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, CW, CH);
+  const end = o.style === 'end', lines = [].concat(o.text), size0 = o.size ?? (end ? 84 : 124), y = o.y ?? (wide ? CH * 0.48 : (end ? 930 : 900));
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.letterSpacing = end ? '6px' : '4px';
-  const tx = (1 - kin) * 14 * 0; let sz = size0; for (const l of lines) sz = Math.min(sz, fitText(ctx, l, SAFE.r - SAFE.l - 20, size0, end ? 700 : 900, 44)); const lh = sz * 1.2;
-  lines.forEach((l, i) => { ctx.font = `${end ? 700 : 900} ${sz}px ${DISP}`; ctx.fillStyle = o.color || (end ? '#f3e9d2' : '#ffffff'); ctx.fillText(l, 540 + tx, y + (i - (lines.length - 1) / 2) * lh); });
-  const bot = y + (lines.length - 1) / 2 * lh + sz * 0.78, rw = (end ? 220 : 520) * easeOut((t - o.t0 - 0.15) / 0.5); ctx.fillStyle = end ? 'rgba(243,233,210,0.55)' : '#ffc531'; ctx.fillRect(540 - rw / 2, bot, rw, end ? 3 : 8);
-  if (o.sub) { ctx.letterSpacing = '2px'; ctx.font = `700 ${o.subSize ?? 52}px ${UI}`; ctx.fillStyle = end ? 'rgba(243,233,210,0.8)' : '#ffd96b'; ctx.fillText(o.sub, 540, bot + 74); }
+  const tx = (1 - kin) * 14 * 0, maxW = wide ? CW - 160 : SAFE.r - SAFE.l - 20; let sz = size0; for (const l of lines) sz = Math.min(sz, fitText(ctx, l, maxW, size0, end ? 700 : 900, 44)); const lh = sz * 1.2;
+  lines.forEach((l, i) => { ctx.font = `${end ? 700 : 900} ${sz}px ${DISP}`; ctx.fillStyle = o.color || (end ? '#f3e9d2' : '#ffffff'); ctx.fillText(l, CX + tx, y + (i - (lines.length - 1) / 2) * lh); });
+  const bot = y + (lines.length - 1) / 2 * lh + sz * 0.78, rw = (end ? 220 : 520) * easeOut((t - o.t0 - 0.15) / 0.5); ctx.fillStyle = end ? 'rgba(243,233,210,0.55)' : '#ffc531'; ctx.fillRect(CX - rw / 2, bot, rw, end ? 3 : 8);
+  if (o.sub) { ctx.letterSpacing = '2px'; ctx.font = `700 ${o.subSize ?? 52}px ${UI}`; ctx.fillStyle = end ? 'rgba(243,233,210,0.8)' : '#ffd96b'; ctx.fillText(o.sub, CX, bot + 74); }
   ctx.restore();
 }
 
 // ---------------------------------------------------------------- white_flash
 // Ramps to a solid colour and back. o: { peak (time of full white, default the middle), hold (seconds fully white, 0), color ('#fff'), max (1), up/down (ramp seconds, default fill t0..peak and peak..t1) }
 export function white_flash(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920;
   const pk = o.peak ?? (o.t0 + o.t1) / 2, h = o.hold ?? 0, a = sm((t - o.t0) / Math.max(0.02, (pk - o.t0))), b = sm((o.t1 - t) / Math.max(0.02, (o.t1 - pk - h))), k = t < pk ? a : t < pk + h ? 1 : b;
-  if (k <= 0) return; ctx.save(); ctx.globalAlpha = k * (o.max ?? 1); ctx.fillStyle = o.color || '#fff'; ctx.fillRect(0, 0, 1080, 1920); ctx.restore();
+  if (k <= 0) return; ctx.save(); ctx.globalAlpha = k * (o.max ?? 1); ctx.fillStyle = o.color || '#fff'; ctx.fillRect(0, 0, CW, CH); ctx.restore();
 }
 
 // ---------------------------------------------------------------- cold
 // Time-ramped cold dream grade (the episode's `look.grade` is one fixed grade for the whole film, so a warm-to-cold change at one moment has to be a layer).
 // o: { amount (0.8 = how far: colours drain and go blue), in (ramp seconds, 0.8), out (0.4), tint ('#4f7fd0'), dark (0.18) }
 export function cold(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, CY = CH / 2;
   const k = sm((t - o.t0) / (o.in ?? 0.8)) * sm((o.t1 - t) / (o.out ?? 0.4)) * (o.amount ?? 0.8); if (k <= 0) return;
-  const src = snap(ctx); ctx.save(); ctx.filter = `saturate(${1 - 0.6 * k}) brightness(${1 - (o.dark ?? 0.18) * k}) contrast(${1 + 0.1 * k})`; ctx.drawImage(src, 0, 0); ctx.restore();
-  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.85 * k; ctx.fillStyle = o.tint || '#7fa4e6'; ctx.fillRect(0, 0, 1080, 1920);
-  ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.1 * k; ctx.fillStyle = '#1a3a7a'; ctx.fillRect(0, 0, 1080, 1920);
-  const v = ctx.createRadialGradient(540, 900, 380, 540, 960, 1250); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,10,40,0.5)'); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = k; ctx.fillStyle = v; ctx.fillRect(0, 0, 1080, 1920); ctx.restore();
+  const src = snap(ctx); if (ONLY.on) return;
+  ctx.save(); ctx.filter = `saturate(${1 - 0.6 * k}) brightness(${1 - (o.dark ?? 0.18) * k}) contrast(${1 + 0.1 * k})`; ctx.drawImage(src, 0, 0); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = 0.85 * k; ctx.fillStyle = o.tint || '#7fa4e6'; ctx.fillRect(0, 0, CW, CH);
+  ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = 0.1 * k; ctx.fillStyle = '#1a3a7a'; ctx.fillRect(0, 0, CW, CH);
+  const v = ctx.createRadialGradient(CX, CY - 60, Math.min(CW, CH) * 0.35, CX, CY, Math.max(CW, CH) * 0.65); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,10,40,0.5)'); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = k; ctx.fillStyle = v; ctx.fillRect(0, 0, CW, CH); ctx.restore();
 }
 
 // ---------------------------------------------------------------- phone-screen insets
 // shared frame: a big phone seen straight on, over the dimmed picture. draw(ctx, W, H, u) paints the screen in local coords (x -W/2..W/2, y -H/2..H/2), u = seconds since it appeared.
 function inset(ctx, o, t, draw, extra = {}) {
-  const k = easeOut((t - o.t0) / 0.26) * clamp((o.t1 - t) / 0.16); if (k <= 0) return; const W = o.w ?? 740, H = o.h ?? 1120, cy = o.y ?? 800, u = t - o.t0;
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
+  const k = easeOut((t - o.t0) / 0.26) * clamp((o.t1 - t) / 0.16); if (k <= 0) return; const W = o.w ?? 740, H = o.h ?? (wide ? Math.min(900, CH - 120) : 1120), cy = o.y ?? (wide ? CH / 2 : 800), u = t - o.t0;
   if (o.backdrop !== false) backdrop(ctx, { t0: o.t0, t1: o.t1, blur: 14, dim: 0.5 }, t);
-  ctx.save(); ctx.globalAlpha = clamp(k * 1.5); ctx.translate(540, cy); ctx.rotate((o.tilt ?? -0.01) + (1 - k) * 0.04); ctx.scale(lerp(0.86, 1, k), lerp(0.86, 1, k));
+  ctx.save(); ctx.globalAlpha = clamp(k * 1.5); ctx.translate(CX, cy); ctx.rotate((o.tilt ?? -0.01) + (1 - k) * 0.04); ctx.scale(lerp(0.86, 1, k), lerp(0.86, 1, k));
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 22; ctx.fillStyle = '#14141c'; ctx.beginPath(); ctx.roundRect(-W / 2 - 18, -H / 2 - 18, W + 36, H + 36, 78); ctx.fill(); ctx.shadowColor = 'transparent';
   ctx.beginPath(); ctx.roundRect(-W / 2, -H / 2, W, H, 60); ctx.save(); ctx.clip(); draw(ctx, W, H, u, extra); ctx.restore();
   ctx.fillStyle = '#05050a'; ctx.beginPath(); ctx.roundRect(-70, -H / 2 + 20, 140, 38, 19); ctx.fill(); // camera pill
@@ -190,10 +199,11 @@ export function blank(ctx, o, t) {
 
 // qr: a QR standee: card on a stand. The pattern is made up and cannot scan (wrong finder squares, no quiet zone, a hole in the middle). o: { label: 'QUÉT MÃ', y, sway (0.02 rad) }
 export function qr(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
   const k = easeOut((t - o.t0) / 0.26) * clamp((o.t1 - t) / 0.16); if (k <= 0) return;
   if (o.backdrop !== false) backdrop(ctx, { t0: o.t0, t1: o.t1, blur: 14, dim: 0.5 }, t);
   const S = o.size ?? 640, N = 21, cell = (S - 100) / N;
-  ctx.save(); ctx.globalAlpha = clamp(k * 1.5); ctx.translate(540, (o.y ?? 820)); ctx.rotate((o.sway ?? 0.02) * Math.sin(t * 1.5) + (1 - k) * 0.06); ctx.scale(lerp(0.86, 1, k), lerp(0.86, 1, k));
+  ctx.save(); ctx.globalAlpha = clamp(k * 1.5); ctx.translate(CX, (o.y ?? (wide ? CH / 2 : 820))); ctx.rotate((o.sway ?? 0.02) * Math.sin(t * 1.5) + (1 - k) * 0.06); ctx.scale(lerp(0.86, 1, k), lerp(0.86, 1, k));
   // stand: an angled foot and a base
   ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 20; ctx.fillStyle = '#2b2d36'; ctx.beginPath(); ctx.moveTo(-90, S * 0.52); ctx.lineTo(90, S * 0.52); ctx.lineTo(160, S * 0.52 + 120); ctx.lineTo(-160, S * 0.52 + 120); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.roundRect(-S / 2, -S * 0.62, S, S * 1.2, 36); ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#d33a2c'; ctx.lineWidth = 12; ctx.stroke();
@@ -208,12 +218,13 @@ export function qr(ctx, o, t) {
 
 // big message card (phone option `big: true`): sender row with the ChatGPT mark (r 64) + name at 2x, the newest message in a bubble sized to ~70 % of the card width, card height fits the content, centred on o.y (800).
 export function msgcard(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
   const k = easeOut((t - o.t0) / 0.28) * clamp((o.t1 - t) / 0.18); if (k <= 0) return;
   if (o.backdrop !== false) backdrop(ctx, { t0: o.t0, t1: o.t1, blur: 14, dim: 0.5 }, t);
   const msgs = (o.msgs || []).filter((m) => t >= m.t), m = msgs[msgs.length - 1], W = o.w ?? 880, txt = m ? m.text : '', R = 64, tw = W * 0.7;
   ctx.save(); ctx.font = `900 100px ${UI}`; let sz = Math.min(150, 100 * tw / Math.max(1, ctx.measureText(txt || 'X').width)); ctx.font = `900 ${sz}px ${UI}`; const bw = Math.min(W - 80, ctx.measureText(txt).width + 90), bh = sz + 80;
-  const H = 40 + R * 2 + 40 + (m ? bh : 120) + 50, cy = o.y ?? 800, pop = m ? easeOut((t - m.t) / 0.18) : 0;
-  ctx.globalAlpha = clamp(k * 1.5); ctx.translate(540, cy); ctx.rotate((o.tilt ?? -0.01) + (1 - k) * 0.04); ctx.scale(lerp(0.86, 1, k), lerp(0.86, 1, k));
+  const H = 40 + R * 2 + 40 + (m ? bh : 120) + 50, cy = o.y ?? (wide ? CH / 2 : 800), pop = m ? easeOut((t - m.t) / 0.18) : 0;
+  ctx.globalAlpha = clamp(k * 1.5); ctx.translate(CX, cy); ctx.rotate((o.tilt ?? -0.01) + (1 - k) * 0.04); ctx.scale(lerp(0.86, 1, k), lerp(0.86, 1, k));
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 22; ctx.fillStyle = '#f3f2f8'; ctx.beginPath(); ctx.roundRect(-W / 2, -H / 2, W, H, 60); ctx.fill(); ctx.shadowColor = 'transparent';
   const ty = -H / 2 + 40 + R; gptMark(ctx, -W / 2 + 60 + R, ty, R); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; fitText(ctx, o.name || 'Chíp', W - 300, 104, 900, 60, UI); ctx.fillStyle = '#16122e'; ctx.fillText(o.name || 'Chíp', -W / 2 + 60 + R * 2 + 30, ty - (o.sub ? 30 : 0));
   if (o.sub) { ctx.font = `700 44px ${UI}`; ctx.fillStyle = '#7a7690'; ctx.fillText(o.sub, -W / 2 + 60 + R * 2 + 30, ty + 66); }

@@ -16,8 +16,11 @@ film.width = W; film.height = H;
 // look2 (core/look2.js, 21/11): &look2=1 or ep.look2 = true | { knobs }; &l2_<knob>=<value> overrides one knob for a test. Off = the old picture, untouched.
 const look2 = q.get('look2') != null ? q.get('look2') !== '0' : !!ep.look2, l2 = look2 ? { ...(typeof ep.look2 === 'object' ? ep.look2 : {}) } : null;
 if (l2) { for (const [k, v] of q) if (k.startsWith('l2_')) l2[k.slice(3)] = isNaN(Number(v)) ? v : Number(v); if (q.get('tone')) l2.tone = q.get('tone'); }
-const pack = PACKS[ep.pack], stage = createStage({ W, H, ss: Number(q.get('ss') || ep.ss || (look2 ? 0 : 1)), tone: q.get('tone') || pack.tone || 'agx', look2: l2 });
-const set = pack.sets[ep.set || pack.defaultSet](stage.scene, ep.setOpts || {});
+const noWarm = q.get('nowarm') === '1';
+const pack = PACKS[ep.pack], stage = createStage({ W, H, ss: Number(q.get('ss') || ep.ss || (look2 ? 0 : 1)), tone: q.get('tone') || pack.tone || 'agx', look2: l2, lazyEnv: noWarm });
+const setName = ep.set || pack.defaultSet;
+if (ep.pack === 'trada' && setName === 'stall' && ep.setOpts?.plus) await import('./packs/trada/stall_plus_preload.js');
+const set = pack.sets[setName](stage.scene, ep.setOpts || {});
 const lights = lightRig(stage.scene, ep.light || set.light, { at: set.lightAt }); set.lights = lights; set.tune?.(lights);
 stage.setLook(set.look); if (ep.look) stage.setLook(ep.look);
 if (q.get('dof')) ep.dof = Number(q.get('dof')); if (q.get('mb')) ep.mblur = Number(q.get('mb'));
@@ -31,9 +34,13 @@ stage.setCast(Object.values(cast).map((c) => c.root));   // look2's cast mask (d
 for (const [n, c] of Object.entries(cast)) { if (ep.poses?.[n]) c.poses = { ...c.poses, ...ep.poses[n] }; if (ep.faces?.[n]) c.faces = { ...c.faces, ...ep.faces[n] }; }
 if (ep.props) ep._props = ep.props({ scene: stage.scene, set, cast, stage }) || null;
 // look2 round 2: the set's light profile (packs/<pack>/look2_sets.js) + the cast's own lights and material response (core/look2.js); nothing without look2
-if (stage.look2) { const m = await import('./packs/' + ep.pack + '/look2_sets.js').catch(() => null); stage.setLook2Scene({ set, lights, setName: ep.set || pack.defaultSet, profiles: m?.L2SETS || {} }); }
-const player = createPlayer(stage, set, cast, ep);
-window.stage = stage; window.player = player; window.ep = ep; window.cast = cast; window.set = set;
+if (stage.look2) { const m = await import('./packs/' + ep.pack + '/look2_sets.js').catch(() => null); stage.setLook2Scene({ set, lights, setName, profiles: m?.L2SETS || {} }); }
+// facePlus (opt-in live facial acting + phoneme visemes: ep.facePlus = true or ?faceplus=1; off = untouched)
+const fpQ = q.get('faceplus') ?? q.get('facePlus'), wantFP = fpQ != null ? fpQ !== '0' : !!(ep.facePlus || ep.faceplus);
+let facePlus = null;
+if (wantFP && ep.pack === 'trada') { const fpMod = await import('./packs/trada/faceplus.js').catch(() => null); if (fpMod?.makeFacePlus) { facePlus = fpMod.makeFacePlus(ep, cast, ep.visemes || {}); facePlus.on = true; } }
+const player = createPlayer(stage, set, cast, ep, { facePlus });
+window.stage = stage; window.player = player; window.ep = ep; window.cast = cast; window.set = set; window.facePlus = facePlus;
 window.seek = (t, o) => player.frame(ctx, t, o);
 // export for other renderers (tools/dump.cjs, tools/render.cjs pngseq --overlays-only); nothing here runs unless a tool calls it
 window.seekState = (t) => player.state(t);   // run the player for time t, draw nothing; then read window.stage.camera, window.cast, window.set
@@ -56,7 +63,7 @@ window.seekOverlay = (t, png = true, mode = null) => { if (mode) { const x = spl
 let bdCv = null;   // export: the set-swap board alone (render.cjs pngseq --board-only)
 window.seekBoard = (t) => { bdCv ||= Object.assign(document.createElement('canvas'), { width: W, height: H }); const a = player.boardFrame(bdCv.getContext('2d'), t); return { png: bdCv.toDataURL('image/png').slice(22), a }; };
 let t = Number(q.get('t') || 0), playing = false, last = 0;
-window.seek(t); window.seek(t);   // twice: the first frame compiles shaders and uploads textures
+if (noWarm) player.state(t); else { window.seek(t); window.seek(t); }   // twice: the first frame compiles shaders and uploads textures (skipped under ?nowarm=1 for geometry-only tools)
 if (!q.get('render')) {
   const hud = document.getElementById('hud');
   const loop = (now) => { if (playing) { t = (t + (now - last) / 1000) % ep.dur; window.seek(t); } last = now; hud.textContent = `${t.toFixed(2)} s · ${player.shotAt(t).cam}`; requestAnimationFrame(loop); }; requestAnimationFrame(loop);
@@ -64,9 +71,10 @@ if (!q.get('render')) {
 }
 // QA probe: where the heads land on the frame at time t, and how bright the subject's face is (tools/qa.cjs)
 import('./core/camera.js').then(({ project }) => {
-  window.probe = (t) => { const cam = player.frame(ctx, t, { overlays: false }), heads = {};
+  window.probe = (t, { luma = true } = {}) => { const cam = player.frame(ctx, t, { overlays: false, noRender: !luma }), heads = {};
     for (const [n, c] of Object.entries(cast)) { const h = c.headWorld(), [x, y, z] = project(stage.camera, h, W, H), top = project(stage.camera, h.clone().add(stage.camera.up.clone().multiplyScalar(c.R)), W, H); heads[n] = { x, y, r: Math.abs(y - top[1]), behind: z > 1 }; }
-    const s = heads[cam.who], d = ctx.getImageData(Math.max(0, Math.round(s.x - s.r * 0.5)), Math.max(0, Math.round(s.y - s.r * 0.5)), Math.max(1, Math.round(s.r)), Math.max(1, Math.round(s.r))).data; let l = 0, hi = 0; for (let i = 0; i < d.length; i += 4) { const v = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; l += v; if (v > 0.97) hi++; }
-    return { shot: player.shotAt(t).cam, base: cam.base, who: cam.who, group: cam.group, darkFace: !!cast[cam.who].darkFace, heads, luma: l / (d.length / 4), blown: hi / (d.length / 4) }; };
+    let lv = null, bl = null;
+    if (luma) { const s = heads[cam.who], d = ctx.getImageData(Math.max(0, Math.round(s.x - s.r * 0.5)), Math.max(0, Math.round(s.y - s.r * 0.5)), Math.max(1, Math.round(s.r)), Math.max(1, Math.round(s.r))).data; let l = 0, hi = 0; for (let i = 0; i < d.length; i += 4) { const v = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255; l += v; if (v > 0.97) hi++; } lv = l / (d.length / 4); bl = hi / (d.length / 4); }
+    return { shot: player.shotAt(t).cam, base: cam.base, who: cam.who, group: cam.group, darkFace: !!cast[cam.who].darkFace, heads, luma: lv, blown: bl }; };
   window.filmReady = true;
 });

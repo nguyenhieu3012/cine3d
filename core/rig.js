@@ -3,17 +3,40 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth, hash, fbm1, canvasTex, mesh } from './util.js';
 
-// a bendy limb (sleeve, leg): a tube along a quadratic curve, rebuilt for the pose of the frame
+// a bendy limb (sleeve, leg): a tube along a quadratic curve, updated in-place (zero per-frame BufferGeometry / VBO churn)
+const _nP = new THREE.Vector3();
 export class Noodle {
   constructor(r, mat, parent, { seg = 14, cast = true, taper = 1 } = {}) {
-    this.r = r; this.seg = seg; this.taper = taper; this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat); this.mesh.castShadow = cast; this.mesh.receiveShadow = true; parent.add(this.mesh); this.mesh.userData.noodle = this; this.outline = null;
+    this.r = r; this.seg = seg; this.taper = taper; this.radSeg = 12;
+    const rings = seg + 1, ring = this.radSeg + 1, vCount = rings * ring;
+    const g = new THREE.BufferGeometry(); g.type = 'TubeGeometry';
+    const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3), uvs = new Float32Array(vCount * 2);
+    for (let i = 0; i <= seg; i++) for (let j = 0; j <= this.radSeg; j++) { const q = (i * ring + j) * 2; uvs[q] = i / seg; uvs[q + 1] = j / this.radSeg; }
+    const idx = [];
+    for (let i = 1; i <= seg; i++) for (let j = 1; j <= this.radSeg; j++) { const a = ring * (i - 1) + (j - 1), b = ring * i + (j - 1), c = ring * i + j, d = ring * (i - 1) + j; idx.push(a, b, d, b, c, d); }
+    g.setIndex(idx); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    this.mesh = new THREE.Mesh(g, mat); this.mesh.castShadow = cast; this.mesh.receiveShadow = true; parent.add(this.mesh); this.mesh.userData.noodle = this; this.outline = null;
     this.curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3());
+    this._cos = Array.from({ length: ring }, (_, j) => -Math.cos((j / this.radSeg) * Math.PI * 2));
+    this._sin = Array.from({ length: ring }, (_, j) => Math.sin((j / this.radSeg) * Math.PI * 2));
   }
   set(a, b, c) {
     this.curve.v0.copy(a); this.curve.v1.copy(b); this.curve.v2.copy(c);
-    this.mesh.geometry.dispose(); const g = new THREE.TubeGeometry(this.curve, this.seg, this.r, 12, false);
-    if (this.taper !== 1) { const p = g.attributes.position, n = this.seg + 1, ring = 13, C = new THREE.Vector3(); for (let i = 0; i < n; i++) { this.curve.getPointAt(i / this.seg, C); const k = lerp(1, this.taper, i / this.seg); for (let j = 0; j < ring; j++) { const q = i * ring + j; p.setXYZ(q, C.x + (p.getX(q) - C.x) * k, C.y + (p.getY(q) - C.y) * k, C.z + (p.getZ(q) - C.z) * k); } } g.computeVertexNormals(); }
-    this.mesh.geometry = g; if (this.outline) this.outline.geometry = g;
+    const g = this.mesh.geometry, pos = g.attributes.position, nor = g.attributes.normal;
+    const frames = this.curve.computeFrenetFrames(this.seg, false), ring = this.radSeg + 1;
+    for (let i = 0; i <= this.seg; i++) {
+      this.curve.getPointAt(i / this.seg, _nP);
+      const N = frames.normals[i], B = frames.binormals[i], rad = this.r * (this.taper !== 1 ? lerp(1, this.taper, i / this.seg) : 1);
+      for (let j = 0; j < ring; j++) {
+        const co = this._cos[j], si = this._sin[j], nx = co * N.x + si * B.x, ny = co * N.y + si * B.y, nz = co * N.z + si * B.z, q = i * ring + j;
+        pos.setXYZ(q, _nP.x + rad * nx, _nP.y + rad * ny, _nP.z + rad * nz);
+        nor.setXYZ(q, nx, ny, nz);
+      }
+    }
+    pos.needsUpdate = true; nor.needsUpdate = true;
+    if (this.taper !== 1) g.computeVertexNormals();
+    g.boundingBox = null; g.boundingSphere = null;
+    if (this.outline && this.outline.geometry !== g) this.outline.geometry = g;
   }
 }
 // arm from shoulder S to hand H: the elbow drops and swings out as the hand comes closer than the arm is long
@@ -68,7 +91,7 @@ export function inkOutline(root, { color = '#231a3d', t = 0.0055, min = 0.028, s
     if (!m.userData.noodle) { if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere(); const sc = new THREE.Vector3(); m.getWorldScale(sc); if (m.geometry.boundingSphere.radius * Math.max(sc.x, sc.y, sc.z) < min) return; }
     list.push(m); });
   for (const m of list) { const sc = new THREE.Vector3(); m.getWorldScale(sc); const ws = (Math.abs(sc.x) + Math.abs(sc.y) + Math.abs(sc.z)) / 3 || 1;
-    let tw = t; if (scale !== 1) { tw = t * scale; if (trim > 0) { if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere(); tw = Math.min(tw, Math.max(t, trim * m.geometry.boundingSphere.radius * ws)); } }
+    let tw = t; if (scale !== 1) { tw = t * scale; if (trim > 0) { if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere(); const bsR = m.geometry.boundingSphere?.radius || 0; const effR = m.userData.noodle && bsR < 1e-4 ? m.userData.noodle.r * 2.5 : bsR; tw = Math.min(tw, Math.max(t, trim * effR * ws)); } }
     const k = tw / ws, halfH = H * 0.5;
     const mat = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide }); if (raw) mat.toneMapped = false;
     // maxPx (look2): the hull is capped at maxPx output pixels (relative to H/2) at the vertex's depth: 1 / ws turns the world cap into the mesh's own units

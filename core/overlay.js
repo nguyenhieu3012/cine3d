@@ -18,7 +18,7 @@ export function fitText(ctx, text, maxW, size, weight = 900, min = 40, fam = DIS
 // split a line into caption chunks of at most `max` characters / 3 words, timed by length (or by real word times when given)
 export function chunks(line, max = 14) {
   if (line._chunks) return line._chunks;
-  const words = line.words ? line.words.map((w) => ({ w: w[0], t0: w[1], t1: w[2] })) : (() => { const ws = line.text.split(/\s+/).filter(Boolean), tot = ws.reduce((a, w) => a + w.length + 1.5, 0), d = line.t1 - line.t0 - 0.08; let t = line.t0; return ws.map((w) => { const dt = d * (w.length + 1.5) / tot, o = { w, t0: t, t1: t + dt }; t += dt; return o; }); })();
+  const words = line.words ? line.words.map((w) => ({ w: w[0], t0: w[1], t1: w[2] })) : (() => { const ws = line.text.split(/\s+/).filter(Boolean), tot = Math.max(1, ws.reduce((a, w) => a + w.length + 1.5, 0)), d = Math.max(0.02, line.t1 - line.t0 - 0.08); let t = line.t0; return ws.map((w) => { const dt = d * (w.length + 1.5) / tot, o = { w, t0: t, t1: t + dt }; t += dt; return o; }); })();
   const out = []; let cur = null;
   for (const w of words) { const ends = cur && /[.!?…,:]$/.test(cur.ws[cur.ws.length - 1]); if (!cur || ends || cur.ws.length >= 3 || (cur.text + ' ' + w.w).length > max) { cur = { ws: [], text: '', t0: w.t0, t1: w.t1 }; out.push(cur); } cur.ws.push(w.w); cur.text = cur.ws.join(' '); cur.t1 = w.t1; }
   out.forEach((c, i) => { c.end = out[i + 1] ? out[i + 1].t0 : line.t1 + 0.12; });
@@ -112,8 +112,9 @@ export function phone(ctx, o, t) {
   if (o.big) return msgcard(ctx, o, t);
   const k = easeOut((t - o.t0) / 0.3) * clamp((o.t1 - t) / 0.2); if (k <= 0) return;
   if (o.backdrop !== false) backdrop(ctx, { t0: o.t0, t1: o.t1, blur: 16, dim: 0.42 }, t);
-  const W = 800, H = 1300, X = 540 - W / 2, Y = (o.y ?? 190) + (1 - k) * 260, acc = o.accent || '#2f7cf6', FS = o.size ?? 46, LH = FS * 1.24, PAD = 26, MAXW = 500;
-  ctx.save(); ctx.globalAlpha = clamp(k * 1.5); ctx.translate(540, Y + H / 2); ctx.rotate((1 - k) * 0.05 + (o.tilt ?? -0.012)); ctx.translate(-540, -(Y + H / 2));
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, CX = CW / 2, wide = CW > CH;
+  const W = 800, H = wide ? Math.min(920, CH - 120) : 1300, X = CX - W / 2, Y = (o.y ?? (wide ? (CH - H) / 2 : 190)) + (1 - k) * 260, acc = o.accent || '#2f7cf6', FS = o.size ?? 46, LH = FS * 1.24, PAD = 26, MAXW = 500;
+  ctx.save(); ctx.globalAlpha = clamp(k * 1.5); ctx.translate(CX, Y + H / 2); ctx.rotate((1 - k) * 0.05 + (o.tilt ?? -0.012)); ctx.translate(-CX, -(Y + H / 2));
   ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 26; ctx.fillStyle = '#14141c'; ctx.beginPath(); ctx.roundRect(X - 18, Y - 18, W + 36, H + 36, 78); ctx.fill(); ctx.shadowColor = 'transparent';
   ctx.beginPath(); ctx.roundRect(X, Y, W, H, 62); ctx.fillStyle = o.bg || '#f3f2f8'; ctx.fill(); ctx.save(); ctx.clip();
   // header
@@ -140,13 +141,15 @@ const INK = '#231a3d';
 // o: { who (or ax, ay = a fixed anchor), text ('' = an empty cloud), r0, r1 = when the words start / finish appearing, pop: false = no pop-in (it continues the cloud before it) }
 export function thought(ctx, o, t, ep, cast, camera) {
   if (t < o.t0 || t > o.t1) return;
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, wide = CW > CH;
   const kin = o.pop === false ? 1 : easeOut((t - o.t0) / 0.3), kout = o.hold ? 1 : clamp((o.t1 - t) / 0.14), k = kin * kout; if (k <= 0) return;
-  let ax = o.ax ?? 540, ay = o.ay ?? 700; const c = cast[o.who];
-  if (c && camera) { const h = c.headWorld(), p = project(camera, h, 1080, 1920), top = project(camera, h.clone().add(camera.up.clone().multiplyScalar(c.R * 1.2)), 1080, 1920); ax = p[0]; ay = top[1]; }
+  let ax = o.ax ?? (CW / 2), ay = o.ay ?? (wide ? 420 : 700); const c = cast[o.who];
+  if (c && camera) { const h = c.headWorld(), p = project(camera, h, CW, CH), top = project(camera, h.clone().add(camera.up.clone().multiplyScalar(c.R * 1.2)), CW, CH); ax = p[0]; ay = top[1]; }
   ctx.save(); ctx.textBaseline = 'middle'; const size = o.size ?? 58; ctx.font = `900 ${size}px ${DISP}`;
   const lines = o.text ? wrapLines(ctx, o.text, o.maxW ?? 620) : []; let tw = 170; for (const l of lines) tw = Math.max(tw, ctx.measureText(l).width);
   const w = tw + 150, h = Math.max(1, lines.length) * size * 1.22 + 110;
-  const cx = clamp(o.x ?? (ax + (o.dx ?? 0)), SAFE.l + w / 2 + 14, SAFE.r - w / 2 - 14), cy = Math.max(o.y ?? (ay - 120 - h / 2), (o.minY ?? 200) + h / 2) + Math.sin(t * 1.7 + cx) * 5;
+  const sl = wide ? 60 : SAFE.l, sr = wide ? CW - 60 : SAFE.r;
+  const cx = clamp(o.x ?? (ax + (o.dx ?? 0)), sl + w / 2 + 14, sr - w / 2 - 14), cy = Math.max(o.y ?? (ay - 120 - h / 2), (o.minY ?? (wide ? 80 : 200)) + h / 2) + Math.sin(t * 1.7 + cx) * 5;
   // trail: three bubbles from the head up to the cloud, the nearest one first
   const bx = cx + clamp(ax - cx, -w * 0.3, w * 0.3), by = cy + h * 0.5;
   [[0.84, 10], [0.56, 16], [0.26, 23]].forEach(([u, r], i) => { const kk = clamp(kin * 3 - i * 0.6) * kout; if (kk <= 0) return; const x = lerp(bx, ax, u), y = lerp(by, ay, u) + Math.sin(t * 2.1 + i) * 3; ctx.globalAlpha = kk; ctx.fillStyle = '#fff'; ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(x, y, r * kk, 0, 7); ctx.fill(); ctx.stroke(); });
@@ -174,8 +177,9 @@ export function drawMumAvatar(ctx, ax, ay, r = 68) {
 }
 // incoming / live phone call card at the top of the frame. o: { name: 'Mẹ', who: 'me' (the lines of this speaker move the sound bars), answer: time the call is picked up, y }
 export function call(ctx, o, t, ep) {
+  const CW = ctx.canvas.width || 1080, CX = CW / 2;
   const k = easeOut((t - o.t0) / 0.3) * clamp((o.t1 - t) / 0.2); if (k <= 0) return;
-  const w = 880, h = 196, x = 540 - w / 2, y = (o.y ?? 176) - (1 - k) * 90, live = t >= (o.answer ?? 1e9);
+  const w = 880, h = 196, x = CX - w / 2, y = (o.y ?? 176) - (1 - k) * 90, live = t >= (o.answer ?? 1e9);
   ctx.save(); ctx.globalAlpha = clamp(k * 1.4); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12; ctx.fillStyle = 'rgba(24,20,44,0.96)'; ctx.beginPath(); ctx.roundRect(x, y, w, h, 52); ctx.fill(); ctx.shadowColor = 'transparent';
   ctx.strokeStyle = live ? '#3ddc84' : 'rgba(255,255,255,0.22)'; ctx.lineWidth = 5; ctx.stroke();
   // avatar: mum (hair bun, warm face)
@@ -192,8 +196,9 @@ export function call(ctx, o, t, ep) {
 }
 // a bank / app notification that drops in from the top. o: { app: 'NGÂN HÀNG', text: '+500.000đ', color, y }
 export function notify(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CX = CW / 2;
   const k = easeOut((t - o.t0) / 0.26) * clamp((o.t1 - t) / 0.18); if (k <= 0) return;
-  const w = 800, h = 190, x = 540 - w / 2, y = (o.y ?? 190) - (1 - k) * 100, col = o.color || '#1fb866';
+  const w = 800, h = 190, x = CX - w / 2, y = (o.y ?? 190) - (1 - k) * 100, col = o.color || '#1fb866';
   ctx.save(); ctx.globalAlpha = clamp(k * 1.4); ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12; ctx.fillStyle = '#f8f7ff'; ctx.beginPath(); ctx.roundRect(x, y, w, h, 46); ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.stroke();
   ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(x + 34, y + 39, 112, 112, 30); ctx.fill(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `900 76px ${DISP}`; ctx.fillText(o.icon || '₫', x + 90, y + 98);
   ctx.textAlign = 'left'; ctx.font = `800 32px ${UI}`; ctx.fillStyle = '#6a6488'; ctx.fillText(o.app || 'NGÂN HÀNG', x + 178, y + 56);
@@ -201,8 +206,9 @@ export function notify(ctx, o, t) {
 }
 // series end plate: "unlocked" (a), then at swapAt the locked teaser of the next episode (b) + a follow pill. o: { a, b, swapAt, follow, y }
 export function unlock(ctx, o, t) {
+  const CW = ctx.canvas.width || 1080, CX = CW / 2;
   if (t < o.t0 || t > o.t1) return; const sw = o.swapAt ?? (o.t0 + o.t1) / 2, locked = t >= sw, k = easeOut((t - (locked ? sw : o.t0)) / 0.24), y = o.y ?? 300, txt = locked ? o.b : o.a, col = locked ? '#ffc531' : '#3ddc84';
-  ctx.save(); ctx.translate(540, y); ctx.scale(lerp(0.8, 1, k), lerp(0.8, 1, k)); ctx.globalAlpha = clamp(k * 1.5); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.save(); ctx.translate(CX, y); ctx.scale(lerp(0.8, 1, k), lerp(0.8, 1, k)); ctx.globalAlpha = clamp(k * 1.5); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   const size = fitText(ctx, txt, 760, 60), tw = ctx.measureText(txt).width, w = tw + 180, h = 132;
   ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10; ctx.fillStyle = 'rgba(16,12,34,0.94)'; ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 40); ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.stroke();
   // padlock
@@ -210,7 +216,7 @@ export function unlock(ctx, o, t) {
   if (locked) { ctx.beginPath(); ctx.moveTo(lx - 17, -12); ctx.lineTo(lx - 17, 0); ctx.moveTo(lx + 17, -12); ctx.lineTo(lx + 17, 0); ctx.stroke(); } else { ctx.beginPath(); ctx.moveTo(lx - 5, -20); ctx.lineTo(lx - 5, 0); ctx.stroke(); }
   ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(lx - 27, -4, 54, 42, 10); ctx.fill(); ctx.fillStyle = '#14102a'; ctx.beginPath(); ctx.arc(lx, 14, 6, 0, 7); ctx.fill();
   ctx.font = `900 ${size}px ${DISP}`; ctx.fillStyle = '#fff'; ctx.fillText(txt, -w / 2 + 126, 3); ctx.restore();
-  if (locked && o.follow) { const k2 = easeOut((t - sw - 0.15) / 0.25); if (k2 > 0) { ctx.save(); ctx.globalAlpha = clamp(k2 * 1.5); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `800 44px ${UI}`; const fw = ctx.measureText(o.follow).width + 84; ctx.fillStyle = '#ffc531'; ctx.beginPath(); ctx.roundRect(540 - fw / 2, y + 96 + (1 - k2) * 20, fw, 88, 44); ctx.fill(); ctx.fillStyle = '#14102a'; ctx.fillText(o.follow, 540, y + 142 + (1 - k2) * 20); ctx.restore(); } }
+  if (locked && o.follow) { const k2 = easeOut((t - sw - 0.15) / 0.25); if (k2 > 0) { ctx.save(); ctx.globalAlpha = clamp(k2 * 1.5); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `800 44px ${UI}`; const fw = ctx.measureText(o.follow).width + 84; ctx.fillStyle = '#ffc531'; ctx.beginPath(); ctx.roundRect(CX - fw / 2, y + 96 + (1 - k2) * 20, fw, 88, 44); ctx.fill(); ctx.fillStyle = '#14102a'; ctx.fillText(o.follow, CX, y + 142 + (1 - k2) * 20); ctx.restore(); } }
 }
 // a gold call-to-action pill (follow line, <= 2 s). o: { text, y }
 export function pill(ctx, o, t) {
@@ -228,10 +234,12 @@ export function pill(ctx, o, t) {
 // maxY (lowest centre, default 1236 - r: the window stays above the caption band) }. A 2-D inset: a hand in front of the chest does not hide it, so close the window instead.
 export function chest(ctx, o, t, ep, cast, camera) {
   if (t < o.t0 || t > o.t1) return;
+  const CW = ctx.canvas.width || 1080, CH = ctx.canvas.height || 1920, wide = CW > CH;
   const c = cast[o.who], r = o.r ?? 175, op = o.open ?? 0.3, kin = clamp((t - o.t0) / op), kout = clamp((o.t1 - t) / (o.slam ? 0.07 : (o.close ?? 0.18))), k = Math.min(overshoot(kin, 0.1), 1.08) * kout; if (k <= 0) return;
-  let ax = o.ax ?? 540, ay = o.ay ?? 1000;
-  if (c && camera) { const a = o.at || [0, (c.headY ?? 0.95) - 0.4, 0.14], p = project(camera, c.body.localToWorld(new THREE.Vector3(a[0], a[1], a[2])), 1080, 1920); ax = p[0]; ay = p[1]; }
-  const cx = clamp(o.x ?? ax + (o.dx ?? 0), SAFE.l + r + 16, SAFE.r - r - 16), cy = clamp(o.y ?? ay + (o.dy ?? 0), SAFE.t + r + 40, o.maxY ?? 1236 - r) + Math.sin(t * 1.7 + 0.6) * 4;
+  let ax = o.ax ?? (CW / 2), ay = o.ay ?? (wide ? 540 : 1000);
+  if (c && camera) { const a = o.at || [0, (c.headY ?? 0.95) - 0.4, 0.14], p = project(camera, c.body.localToWorld(new THREE.Vector3(a[0], a[1], a[2])), CW, CH); ax = p[0]; ay = p[1]; }
+  const sl = wide ? 60 : SAFE.l, sr = wide ? CW - 60 : SAFE.r, st = wide ? 60 : SAFE.t;
+  const cx = clamp(o.x ?? ax + (o.dx ?? 0), sl + r + 16, sr - r - 16), cy = clamp(o.y ?? ay + (o.dy ?? 0), st + r + 40, o.maxY ?? (wide ? CH - 180 : 1236) - r) + Math.sin(t * 1.7 + 0.6) * 4;
   const rim = o.rim || '#b56cff', u = t - o.t0 - op, pulse = u > 0 ? Math.exp(-u / 0.22) : kin;
   ctx.save();
   // tail: three beads from the window down to the chest point (only when the chest is outside the window)
@@ -251,7 +259,8 @@ export function chest(ctx, o, t, ep, cast, camera) {
   ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(0, 0, r - 4, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke();
   ctx.restore();
 }
+const OVERLAY_HANDLERS = { hook, chip, bubble, end: endCard, score, backdrop, draw, phone, thought, call, notify, unlock, pill, chest, ...ZB, ...V2_OVERLAYS };
 export function drawOverlays(ctx, ep, t, cast, camera) {
-  for (const o of ep.overlays || []) { if (t < o.t0 - 0.01 || t > o.t1 + 0.01) continue; ONLY.cur = o.kind; ({ hook, chip, bubble, end: endCard, score, backdrop, draw, phone, thought, call, notify, unlock, pill, chest, ...ZB, ...V2_OVERLAYS }[o.kind] || (() => {}))(ctx, o, t, ep, cast, camera); }
+  for (const o of ep.overlays || []) { if (t < o.t0 - 0.01 || t > o.t1 + 0.01) continue; ONLY.cur = o.kind; const fn = OVERLAY_HANDLERS[o.kind]; if (fn) fn(ctx, o, t, ep, cast, camera); }
   caption(ctx, ep, t, cast);
 }

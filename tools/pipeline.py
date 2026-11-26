@@ -29,9 +29,9 @@ ALLOWED = {'script_gate': ('PASS', 'FAIL'), 'facts': ('GO', 'NOGO'), 'driver_rev
            'episode_gate': ('PASS', 'FAIL'), 'owner': ('OK', 'NO'), 'posted': ('OK',), 'animatic_owner': ('OK', 'NO'), 'credit_owner': ('OK', 'NO')}
 # 14/11: every step takes the same verdict words, any case. pass / ok / done / go = positive, fail / fix / no / nogo = negative; the stored word is the step's own (first / second of ALLOWED)
 POS_WORDS = {'PASS', 'OK', 'DONE', 'GO'}; NEG_WORDS = {'FAIL', 'FIX', 'NO', 'NOGO', 'NO-GO'}
-STALE_SCRIPT = 'STALE (a line, its speaker, its `say`, the order of the lines or the header meta changed since the verdict: re-ask only the changed points; sound and timing edits do not count)'
+STALE_SCRIPT = 'STALE (a line, its speaker, its `say`/card/visual, header hook/cards/payoff/twist/mode/meta, or beat order changed since the verdict: re-ask only the changed points; pure sound/timing edits do not count)'
 STALE_OLD = 'STALE (this verdict was recorded with the old whole-file hash and beats.json changed since: if only sound or timing fields changed, record it again with a note; if a line changed, re-ask only the changed points)'
-JV = 2   # version of the judged-content hash of the script gate
+JV = 3   # version of the judged-content hash of the script gate (v3 adds hook, cards, payoff, twist, mode, and per-beat card/visual/note)
 OKV = {'script_gate': 'PASS', 'facts': 'GO', 'driver_review': 'OK', 'render': ('OK', 'DONE'), 'episode_gate': 'PASS', 'owner': 'OK', 'animatic_owner': 'OK', 'credit_owner': 'OK'}
 TREATMENT_HEADINGS = ['About', 'Feelings', 'Cause chain', 'Tension curve', '0-3 s', '4-10 s', 'Last 15 s', 'Sound plan']
 CARD_REQ = {'trada': ['title', 'person', 'sum', 'recipient', 'first_frame', 'kind'],
@@ -94,13 +94,16 @@ def mtime(path):
     except OSError: return None
 def keyof(*parts): return hashlib.sha256(json.dumps(parts, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 def judged_hash(path):
-    """Hash of what a script reviewer judges (14/11): the header `meta`, and per SPOKEN beat in order its id, who, spk, text, say. Tension, gap, gain, sfx, music, duck, impact, tempo, pauses
-    (a silent beat has no words) and every other sound or timing field are not in it. None if the file is missing or not JSON."""
+    """Hash of what a script reviewer judges (v3): header meta/hook/cards/payoff/twist/mode, and per beat in order its id, who, spk, text, say, card, visual, note (pure sound/timing fields excluded). None if missing or not JSON."""
     try: B = json.load(open(path, encoding='utf-8'))
     except Exception: return None
     if not isinstance(B, dict) or not isinstance(B.get('beats'), list): return None
-    rows = [[b.get('id'), b.get('who'), b.get('spk'), b.get('text'), b.get('say')] for b in B['beats'] if isinstance(b, dict) and 'text' in b]
-    return keyof(dict(v=JV, meta=B.get('meta'), beats=rows))
+    rows = [
+        [b.get('id'), b.get('who'), b.get('spk'), b.get('text'), b.get('say'), b.get('card'), b.get('visual'), b.get('note')]
+        for b in B['beats']
+        if isinstance(b, dict) and ('text' in b or b.get('card') or b.get('visual') or b.get('note'))
+    ]
+    return keyof(dict(v=JV, meta=B.get('meta'), hook=B.get('hook'), cards=B.get('cards'), payoff=B.get('payoff'), twist=B.get('twist'), mode=B.get('mode'), beats=rows))
 DIRTY = set()   # episode ids whose state got an in-memory upgrade (old whole-file hash -> judged hash) that status / next / record then save
 def beats_match(st, e):
     """verdict_check matcher for the script gate / facts records: None = still valid, else the STALE text."""
@@ -173,9 +176,9 @@ def check_card(e, ch, st=None):
     else:
         k = c.get('kind')
         if isinstance(k, str) and k.strip() and not re.fullmatch(r'standalone|special|series:\S.*', k.strip()): bad.append('kind (must be standalone, special or series:<name>)')
-        if st is not None and rules_of(st) == 2:   # the owner 23/11 evening: every Blueprint-v2 card names its pillar (1 Bíp Cứu Nhà Tèo, 2 Từ Điển Tiếng Mẹ & Chuyện Nhà, 3 Tèo & Đồng Lương)
+        if st is not None and rules_of(st) == 2:   # Blueprint v2.1: 4 pillars (1 Bíp Cứu Nhà Tèo, 2 Từ Điển Tiếng Mẹ & Chuyện Nhà, 3 Tèo & Đồng Lương, 4 Wildcard / Quán Trà Đêm)
             pl = c.get('pillar')
-            if not isinstance(pl, str) or not re.match(r'\s*[123]\b', pl): bad.append('pillar (must start with 1, 2 or 3: 1 Bíp Cứu Nhà Tèo, 2 Từ Điển Tiếng Mẹ & Chuyện Nhà, 3 Tèo & Đồng Lương)')
+            if not isinstance(pl, str) or not re.match(r'\s*[1234]\b', pl): bad.append('pillar (must start with 1, 2, 3 or 4: 1 Bíp Cứu Nhà Tèo, 2 Từ Điển Tiếng Mẹ & Chuyện Nhà, 3 Tèo & Đồng Lương, 4 Wildcard / Quán Trà Đêm)')
             b10 = c.get('bar10k')
             if b10 not in (None, '', 'yes', 'no'): bad.append('bar10k (yes or no; the 10K bar runs one episode in three)')
     of = c.get('owner_fixed')
@@ -267,7 +270,31 @@ def engine_sig():
     return keyof(out, fstat(f'{ROOT}/main.js'), fstat(f'{ROOT}/index.html'))
 
 
-def py(name): return ex(cfg()['venv_python']) if name == 'venv' else cfg().get('python3', 'python3')
+_PY_VENV = None
+def py(name):
+    if name != 'venv': return cfg().get('python3', 'python3')
+    global _PY_VENV
+    if _PY_VENV: return _PY_VENV
+    import shutil
+    cands = [os.environ.get('CINE3D_VENV_PYTHON'), ex(cfg().get('venv_python')), sys.executable, shutil.which('python3'), '/usr/bin/python3']
+    seen = set()
+    for c in cands:
+        if not c or c in seen or not os.path.exists(c): continue
+        seen.add(c)
+        try:
+            if subprocess.run([c, '-c', 'import numpy'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0:
+                _PY_VENV = c; return c
+        except Exception:
+            pass
+    _PY_VENV = sys.executable or 'python3'
+    return _PY_VENV
+
+def pic_files(e):
+    return [f for f in e.related() if not f.endswith('.beats.json')]
+
+def pic_hash(e):
+    if not os.path.exists(e.episode): return None
+    return keyof([(rel(f), sha(f)) for f in pic_files(e)])
 
 
 # ---------------------------------------------------------------- step 3: script
@@ -409,7 +436,7 @@ def review_proxy(e):
     p = f'{e.out}/review_proxy.mp4'
     return p if os.path.exists(p) else None
 def check_driver_review(st, e):
-    h = sha(e.episode); cs, strips = sheets(e)
+    h = sha(e.episode); ph = pic_hash(e); cs, strips = sheets(e)
     is_gem = st.get('workflow') == 'gemini'
     proxy = review_proxy(e) if is_gem else None
     cmd = f'python3 tools/build_check.py {rel(e.episode)} --final  (or --proxy-only)' if is_gem else f'python3 tools/sheets.py {rel(e.episode)}  (contact sheets), then  python3 tools/sheets.py {rel(e.episode)} <t0> <t1>  (motion strip of one action)'
@@ -418,10 +445,14 @@ def check_driver_review(st, e):
         why = f'no review proxy {rel(e.out)}/review_proxy.mp4 (nor cs*.jpg): the driver cannot review what does not exist' if is_gem else f'no contact sheets {rel(e.out)}/cs*.jpg: the driver cannot have read what does not exist'
         return R('FAIL' if st['records'].get('driver_review') else 'TODO', why, cmd, [e.episode])
     latest = max(mtime(x) for x in ([cs[-1]] if cs else []) + ([proxy] if proxy else []))
-    ep_m = mtime(e.episode) or 0
-    proof_old = f'review proof older than {rel(e.episode)} (made before the last edit): re-make it' if latest < ep_m else None
+    pfs = pic_files(e)
+    ep_m = max((mtime(f) or 0) for f in pfs) if pfs else (mtime(e.episode) or 0)
+    proof_old = f'review proof older than picture inputs ({rel(e.episode)} / _props / times / lips): re-make it' if latest < ep_m else None
     proof_files = [e.episode] + ([proxy] if proxy else []) + cs[:1]
-    r = verdict_check(st, 'driver_review', h, 'driver review', proof_files, rec_cmd)
+    def drv_match(rec):
+        if rec.get('pic_hash'): return None if rec['pic_hash'] == ph else STALE_MSG
+        return None if rec.get('hash') == h else STALE_MSG
+    r = verdict_check(st, 'driver_review', h, 'driver review', proof_files, rec_cmd, drv_match)
     if r.state == 'DONE' and proof_old: return R('FAIL', proof_old, cmd, [e.episode])
     if r.state == 'TODO':
         desc = f'review_proxy.mp4' + (f' + {len(cs)} contact sheets' if cs else '') if proxy else f'{len(cs)} contact sheets, {len(strips)} motion strips'
@@ -446,15 +477,19 @@ def check_render(st, e, run):
     if not rec: return R('TODO', 'no final mp4 recorded' + (f' ({rel(e.mp4_default)} exists)' if os.path.exists(e.mp4_default) else ''), f'{render_cmd}  then  {rec_cmd}', [e.episode])
     mp4 = rec['mp4']
     if not os.path.exists(mp4): return R('FAIL', f'recorded mp4 is missing: {mp4}', render_cmd, [mp4])
-    if sha(mp4) != rec.get('hash') or sha(e.episode) != rec.get('episode_hash'): return R('STALE', f'render: {STALE_MSG}  [mp4 {rel(mp4)}]', f'{render_cmd}  then  {rec_cmd}', [mp4])
-    if mtime(mp4) < mtime(e.episode): return R('FAIL', f'{rel(mp4)} is older than {rel(e.episode)}: render again', render_cmd, [mp4])
+    ph = pic_hash(e); mix_wav = f'{e.audio}/mix.wav'; mh = sha(mix_wav) if os.path.exists(mix_wav) else None
+    pic_stale = (ph != rec.get('pic_hash')) if rec.get('pic_hash') else (sha(e.episode) != rec.get('episode_hash'))
+    mix_stale = bool(rec.get('mix_hash') and mh != rec.get('mix_hash'))
+    if sha(mp4) != rec.get('hash') or pic_stale or mix_stale: return R('STALE', f'render: {STALE_MSG}  [mp4 {rel(mp4)}]', f'{render_cmd}  then  {rec_cmd}', [mp4])
+    dep_m = max([mtime(f) or 0 for f in pic_files(e)] + ([mtime(mix_wav) or 0] if os.path.exists(mix_wav) else []))
+    if (mtime(mp4) or 0) < dep_m: return R('FAIL', f'{rel(mp4)} is older than its picture/audio inputs: render again', render_cmd, [mp4])
     fps, err = fps_of(mp4)
     if err: return R('ERROR', err, f'ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate {mp4}', [mp4])
     # standard since 23/11/2026 (owner): 30 fps CFR. 60 fps is still accepted so renders finished and posted before the switch keep their DONE state; new renders are made at 30.
     if any(min(abs(v - 30.0), abs(v - 60.0)) > 0.01 for v in fps): return R('FAIL', f'{rel(mp4)} is not 30 fps CFR (avg {fps[0]:.3f}, r {fps[1]:.3f}; 60 fps accepted only for renders made before 23/11)', render_cmd, [mp4])
     cmd = f'~/tdvai/.venv/bin/python tools/smooth.py {rel(mp4)} --ep {rel(e.episode)}'
     chk = [dict(name='smooth', args=[py('venv'), 'tools/smooth.py', rel(mp4), '--ep', rel(e.episode)], pass_re=r'^SMOOTH (PASS|OK).*', fail_re=r'^SMOOTH FAIL.*', repro=cmd)]
-    return machine(st, 'render', keyof(sha(mp4), sha(e.episode), tool_sig('smooth.py')), chk, run, [mp4])
+    return machine(st, 'render', keyof(sha(mp4), ph, mh, tool_sig('smooth.py')), chk, run, [mp4])
 
 
 # ---------------------------------------------------------------- steps 10-13
@@ -473,6 +508,7 @@ def check_posted(st, e, ch):
 
 def ledger_path():
     p = ex(cfg()['ledger_script'])
+    if not p or not os.path.exists(p): return None
     try:
         spec = importlib.util.spec_from_file_location('ledger_mod', p); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m.CSV
     except Exception:
@@ -525,9 +561,16 @@ def stale_notes(st):
     for k in ('script_gate', 'facts', 'credit_owner'):
         if k in R_ and sha(e.beats) is not None and bm(dict(R_[k])): out.append(k)
     if 'animatic_owner' in R_: chk('animatic_owner', rules2.animatic_hash(st['id']))
-    chk('driver_review', sha(e.episode))
-    mp4 = render_mp4(st)
-    if 'render' in R_ and (sha(e.episode) != R_['render'].get('episode_hash') or (mp4 and sha(mp4) != R_['render'].get('hash'))): out.append('render')
+    ph = pic_hash(e)
+    if 'driver_review' in R_:
+        if R_['driver_review'].get('pic_hash'):
+            if ph is not None and R_['driver_review']['pic_hash'] != ph: out.append('driver_review')
+        else: chk('driver_review', sha(e.episode))
+    mp4 = render_mp4(st); mix_wav = f'{e.audio}/mix.wav'; mh = sha(mix_wav) if os.path.exists(mix_wav) else None
+    if 'render' in R_:
+        pic_bad = (ph != R_['render'].get('pic_hash')) if R_['render'].get('pic_hash') else (sha(e.episode) != R_['render'].get('episode_hash'))
+        mix_bad = bool(R_['render'].get('mix_hash') and mh != R_['render'].get('mix_hash'))
+        if pic_bad or mix_bad or (mp4 and sha(mp4) != R_['render'].get('hash')): out.append('render')
     if mp4: chk('episode_gate', sha(mp4)); chk('owner', sha(mp4))
     return out
 def current(ev):
@@ -645,23 +688,29 @@ def cmd_new(a):
         save_state(ns); made.append(rel(e.state_path))
     print(f'created only the missing files: {", ".join(made)} (existing files are never overwritten); fill every required card field: {", ".join(CARD_REQ[ch])}\nnext: pipeline.py next {a.id}')
 def cmd_mix(a):
-    """Share of the three Trà đá pillars over the rules-2 cards, against the Blueprint target 40/35/25."""
+    """Share of the four Trà đá pillars over the rules-2 cards, against the Blueprint v2.1 target 30/35/20/15."""
     import glob
-    names = {'1': 'Bíp Cứu Nhà Tèo', '2': 'Từ Điển Tiếng Mẹ & Chuyện Nhà', '3': 'Tèo & Đồng Lương'}; want = {'1': 40, '2': 35, '3': 25}; n = {k: [] for k in names}; none = []
+    names = {'1': 'Bíp Cứu Nhà Tèo', '2': 'Từ Điển Tiếng Mẹ & Chuyện Nhà', '3': 'Tèo & Đồng Lương', '4': 'Wildcard / Quán Trà Đêm'}
+    want = {'1': 30, '2': 35, '3': 20, '4': 15}; n = {k: [] for k in names}; none = []
     for q in sorted(glob.glob(f'{ROOT}/out/*/pipeline.json')):
         try: st = json.load(open(q, encoding='utf-8'))
         except Exception: continue
         if st.get('channel') != 'trada' or rules_of(st) != 2: continue
-        c, _ = read_json(Ep(st['id']).card); m = re.match(r'\s*([123])\b', (c or {}).get('pillar') or '') if isinstance(c, dict) else None
+        c, _ = read_json(Ep(st['id']).card); m = re.match(r'\s*([1234])\b', (c or {}).get('pillar') or '') if isinstance(c, dict) else None
         (n[m.group(1)] if m else none).append(st['id'])
     tot = sum(len(v) for v in n.values())
-    for k in '123': print(f'pillar {k} {names[k]:32s} {len(n[k]):2d}  {(100 * len(n[k]) / tot if tot else 0):3.0f} %  (target {want[k]} %)  {" ".join(n[k])}')
+    for k in '1234': print(f'pillar {k} {names[k]:32s} {len(n[k]):2d}  {(100 * len(n[k]) / tot if tot else 0):3.0f} %  (target {want[k]} %)  {" ".join(n[k])}')
     if none: print('no pillar on the card: ' + ' '.join(none))
 def cmd_adopt(a):
     valid_id(a.id); channel(a.channel); e = Ep(a.id)
     if os.path.exists(e.state_path): print(f'{a.id} already has {rel(e.state_path)} (channel {load_state(a.id)["channel"]}); showing status'); return cmd_status(argparse.Namespace(id=a.id, run=False, json=False))
     if not e.related(): die(f'nothing on disk for {a.id} (no episodes/{a.id}.*): use `new {a.id} --channel {a.channel}`', 1)
     ns = new_state(a.id, a.channel)
+    if a.channel == 'trada':
+        beats, _ = read_json(e.beats) if os.path.exists(e.beats) else (None, None)
+        if getattr(a, 'rules', None): ns['rules'] = int(a.rules)
+        elif isinstance(beats, dict) and beats.get('rules') in (1, 2): ns['rules'] = int(beats['rules'])
+        elif not os.path.exists(e.episode): ns['rules'] = 2
     if getattr(a, 'workflow', None) == 'gemini': ns['workflow'] = 'gemini'
     save_state(ns); print(f'adopted {a.id} into {a.channel}: {rel(e.state_path)} written; no force applied, missing early artefacts are TODO'); cmd_status(argparse.Namespace(id=a.id, run=False, json=False))
 
@@ -684,18 +733,25 @@ def cmd_copy(a):
         if f.endswith(('.js', '.json', '.cjs')):
             txt = open(f, encoding='utf-8').read(); out, n = pat.subn(a.new_id, txt); open(dst, 'w', encoding='utf-8').write(out); L.append(f'  {nn}: {n} id reference(s) rewritten')
         else: shutil.copyfile(f, dst); L.append(f'  {nn}: copied as is')
-    # voice takes: the library index is keyed by speaker|text, so identical lines already find their takes; takes that exist only as voice/<src>/<beat>.* are copied to voice/<new>/
+    # voice takes: the library index is keyed by speaker|text, so identical lines already find their takes; takes that exist only as voice/<src>/<beat>.* are copied to voice/<new>/ along with matching takes.json provenance
     beats, _ = read_json(new.beats); copied = 0; known = 0; missing = 0
     if isinstance(beats, dict):
         own = json.load(open(f'{ROOT}/voice/index.json', encoding='utf-8')) if os.path.exists(f'{ROOT}/voice/index.json') else {}
         lib = json.load(open(f'{HOME}/tdvai/vo/lib/index.json', encoding='utf-8')) if os.path.exists(f'{HOME}/tdvai/vo/lib/index.json') else {}
+        src_tk_p = f'{ROOT}/voice/{a.id}/takes.json'
+        src_tk = (json.load(open(src_tk_p, encoding='utf-8')).get('takes') or {}) if os.path.exists(src_tk_p) else {}
+        copied_tk = {}
         for b in beats.get('beats', []):
             if 'text' not in b: continue
             k = tkey(b.get('spk', b['who'].upper()), b['text'])
             if (k in own and os.path.exists(f'{ROOT}/{own[k]}')) or k in lib: known += 1; continue
             hit = next((f'{ROOT}/voice/{a.id}/{b["id"]}.{x}' for x in ('wav', 'mp3', 'flac') if os.path.exists(f'{ROOT}/voice/{a.id}/{b["id"]}.{x}')), None)
-            if hit: os.makedirs(f'{ROOT}/voice/{a.new_id}', exist_ok=True); shutil.copyfile(hit, f'{ROOT}/voice/{a.new_id}/{os.path.basename(hit)}'); copied += 1
+            if hit:
+                os.makedirs(f'{ROOT}/voice/{a.new_id}', exist_ok=True); shutil.copyfile(hit, f'{ROOT}/voice/{a.new_id}/{os.path.basename(hit)}'); copied += 1
+                if b['id'] in src_tk: copied_tk[b['id']] = dict(src_tk[b['id']], src='copy')
             else: missing += 1
+        if copied_tk:
+            json.dump(dict(takes=copied_tk, pending={}, total_chars=0), open(f'{ROOT}/voice/{a.new_id}/takes.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print(f'copied {a.id} -> {a.new_id} (channel {ch}); the source is untouched:\n' + '\n'.join(L) + f'\nvoice: {known} lines already found in the take index, {copied} takes copied to voice/{a.new_id}/, {missing} lines without any take (`voice.py need` lists them)')
     if os.path.exists(new.state_path): return
     ns = new_state(a.new_id, ch)
@@ -808,12 +864,14 @@ def cmd_record(a):
             if is_gem: die(f'REFUSED: no review proof in {rel(e.out)} (neither review_proxy.mp4 nor cs*.jpg). Make it: python3 tools/build_check.py {rel(e.episode)} --final', 1)
             die(f'REFUSED: no contact sheets in {rel(e.out)}/cs*.jpg. Make them: python3 tools/sheets.py {rel(e.episode)}', 1)
         if not os.path.exists(e.episode): die(f'cannot record: {rel(e.episode)} does not exist', 1)
-        rec['hash'] = sha(e.episode)
+        rec['hash'] = sha(e.episode); rec['pic_hash'] = pic_hash(e)
     elif step == 'render':
         if not a.mp4: die('render needs --mp4 <path to the final mp4>')
         mp4 = os.path.abspath(os.path.expanduser(a.mp4))
         if not os.path.exists(mp4): die(f'REFUSED: {mp4} does not exist', 1)
-        rec.update(mp4=mp4, hash=sha(mp4), episode_hash=sha(e.episode))
+        mix_wav = f'{e.audio}/mix.wav'
+        rec.update(mp4=mp4, hash=sha(mp4), episode_hash=sha(e.episode), pic_hash=pic_hash(e))
+        if os.path.exists(mix_wav): rec['mix_hash'] = sha(mix_wav)
     elif step in ('episode_gate', 'owner', 'posted'):
         mp4 = render_mp4(st)
         if a.mp4:
@@ -871,7 +929,7 @@ def cmd_list(a):
 
 USAGE = '''pipeline.py: where is this episode, what is next, who does it, which gate cannot be skipped. Run from ~/cine3d. `pipeline.py <command> --help` for options.
   new <id> --channel trada|goat [--workflow claude|gemini]  write the missing card skeleton + pipeline.json (never overwrites)   e.g. new ngay14 --channel trada --workflow gemini
-  adopt <id> --channel X               give an episode already on disk a pipeline.json (nothing forced)    e.g. adopt ngay12 --channel trada
+  adopt <id> --channel X [--rules 1|2] give an episode already on disk a pipeline.json (nothing forced)    e.g. adopt ngay12 --channel trada
   copy <src-id> <new-id> [--channel X] copy card, treatment, beats, episode + side files under a new id    e.g. copy ngay12 ngay12v5
   status <id> [--run] [--json]         one line per step + NEXT; --run re-runs the current machine check    e.g. status ngay12 --run
   next <id> [--json]                   the next step: who, model, effort, commands, proof, brief            e.g. next ngay12
@@ -880,7 +938,7 @@ USAGE = '''pipeline.py: where is this episode, what is next, who does it, which 
                                        e.g. record ngay12 script_gate PASS --by tdvai-script-reviewer --note "10/10"
   can-post <id> [--allow-forced]       exit 0 + CAN POST only when every step up to owner is done (1-11, or 1-15 with rules 2), nothing stale   e.g. can-post ngay12
   list [--channel X] [--json]          every episode with a pipeline.json, current step, forced/stale      e.g. list --channel goat
-  mix                                  Trà đá: share of the three pillars over the rules-2 cards against 40/35/25         e.g. mix
+  mix                                  Trà đá: share of the four pillars over the rules-2 cards against 30/35/20/15         e.g. mix
 Rules 2 (23/11, Trà đá only, the default for `new --channel trada`): steps `build` (the whole picture, silent, estimated times), `animatic` (that build rendered without the voice) and `animatic_owner` sit between script_gate and voice, `retime` (real times + lips) after audio; voice.py refuses to call ElevenLabs until the owner approved the silent animatic. Docs: ENGINE.md, section 23/11.
 Exit codes: 0 ok/allowed, 1 not allowed/failed, 2 usage error. Manual: docs/v4-pipeline.md'''
 
@@ -891,7 +949,7 @@ def main():
     P = argparse.ArgumentParser(prog='pipeline.py', description=__doc__.split('\n')[0]); S = P.add_subparsers(dest='cmd', required=True)
     p = S.add_parser('copy'); p.add_argument('id'); p.add_argument('new_id'); p.add_argument('--channel', choices=['trada', 'goat']); p.set_defaults(f=cmd_copy)
     p = S.add_parser('new'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.add_argument('--workflow', choices=['claude', 'gemini'], default='claude'); p.set_defaults(f=cmd_new)
-    p = S.add_parser('adopt'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.add_argument('--workflow', choices=['claude', 'gemini'], default='claude'); p.set_defaults(f=cmd_adopt)
+    p = S.add_parser('adopt'); p.add_argument('id'); p.add_argument('--channel', required=True, choices=['trada', 'goat']); p.add_argument('--workflow', choices=['claude', 'gemini'], default='claude'); p.add_argument('--rules', choices=['1', '2']); p.set_defaults(f=cmd_adopt)
     p = S.add_parser('status'); p.add_argument('id'); p.add_argument('--run', action='store_true'); p.add_argument('--json', action='store_true'); p.set_defaults(f=cmd_status)
     p = S.add_parser('next'); p.add_argument('id'); p.add_argument('--json', action='store_true'); p.set_defaults(f=cmd_next)
     p = S.add_parser('brief'); p.add_argument('id'); p.add_argument('template'); p.set_defaults(f=cmd_brief)

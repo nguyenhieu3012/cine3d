@@ -39,8 +39,26 @@ export function makeFacePlus(ep, cast, cues = {}) {
       if (env) { const x = (t - l.t0) * 60, j = Math.floor(x); return clamp(lerp(env[j] ?? 0, env[j + 1] ?? 0, x - j)) * edge; }
       return clamp(0.25 + 0.75 * Math.abs(Math.sin((t - l.t0) * 13 + i)) * (0.6 + 0.4 * fbm1(t * 5, i))) * edge; } return 0; };
   const talkMouth = (who, t) => (talkOf(who, t - 1 / 60) + 2 * talkOf(who, t) + talkOf(who, t + 1 / 60)) / 4;
-  const speakerAt = (t) => lines.find((l) => t >= l.t0 - 0.05 && t <= l.t1 + 0.05)?.who;
+  const speakerAt = (t) => lines.find((l) => !l.think && t >= l.t0 - 0.05 && t <= l.t1 + 0.05)?.who;
   const shotAt = (t) => shots.find((s) => t >= s.t0 && t < s.t1) || shots[shots.length - 1];
+  // Deterministic text->viseme cues when Rhubarb cues aren't provided (allows live ep.facePlus: true with zero external binary)
+  const wordVisemes = (raw, t0, t1) => {
+    const d = t1 - t0; if (d < 0.03) return [];
+    const w = String(raw || '').toLowerCase().replace(/[^a-zà-ỹ0-9]/gi, ''); if (!w) return [];
+    const out = []; let cur = t0;
+    if (/^[mbp]/.test(w)) { const dt = Math.min(0.055, d * 0.24); out.push([cur, cur + dt, 'A']); cur += dt; }
+    else if (/^(ph|[fv])/.test(w)) { const dt = Math.min(0.055, d * 0.22); out.push([cur, cur + dt, 'G']); cur += dt; }
+    let vow = 'C';
+    if (/[uùúụủũưừứựửữôồốộổỗ]/.test(w)) vow = 'F';
+    else if (/[oòóọỏõơờớợởỡ]/.test(w)) vow = 'E';
+    else if (/[aàáạảãăằắặẳẵâầấậẩẫ]/.test(w)) vow = 'D';
+    else if (/[iìíịỉĩeèéẹẻẽêềếệểễyỳýỵỷỹ]/.test(w)) vow = 'B';
+    const hasEndClose = /[mpb]$/.test(w) && (t1 - cur) > 0.08;
+    const vEnd = hasEndClose ? t1 - Math.min(0.05, (t1 - cur) * 0.24) : t1;
+    if (vEnd > cur + 0.01) out.push([cur, vEnd, vow]);
+    if (hasEndClose) out.push([vEnd, t1, 'A']);
+    return out;
+  };
 
   const H = {};
   for (const n of names) {
@@ -77,8 +95,8 @@ export function makeFacePlus(ep, cast, cues = {}) {
     for (const e of emoEv) if (e.blink) blinks.push(e.t + 0.02);
     for (const e of lookEv) if (e.blink) blinks.push(e.t + 0.01);
     blinks.sort((a, b) => a - b); const bl2 = []; for (const b of blinks) if (!bl2.length || b - bl2[bl2.length - 1] > 0.22) bl2.push(b);   // never two closures in 0.22 s (they merge into one)
-    // Rhubarb cues of this character, sorted
-    const cu = (cues[n] || []).slice().sort((a, b) => a[0] - b[0]);
+    // Rhubarb cues if supplied, else deterministic text-phoneme visemes timed by voice energy
+    const cu = (cues[n] && cues[n].length ? cues[n] : words.flatMap((w) => wordVisemes(w.raw, w.t0, w.t1))).slice().sort((a, b) => a[0] - b[0]);
     H[n] = { n, kind, K, F, seed, partner, own, words, hot, questions, onsets, emoEv, lookEv, blinks: bl2, cues: cu };
   }
 

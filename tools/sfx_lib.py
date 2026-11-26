@@ -191,17 +191,19 @@ def build_music(M, dur, when_fn, out_wav, sr=DEFAULT_SR):
         t1 = min(float(dur), resolve_t(seg.get('to'), seg.get('off1', 0.0), float(dur)))
         if t1 <= t0 + 0.05:
             continue
-        xf = float(seg.get('xfade', 0.8 if i > 0 else 0.0))
-        s_start = max(0.0, t0 - xf * 0.5)
-        s_end = min(float(dur), t1 + xf * 0.5)
+        in_xf = float(seg.get('xfade', 0.8)) if i > 0 else 0.0
+        next_xf = float(segs[i + 1].get('xfade', 0.8)) if i + 1 < len(segs) else 0.0
+        out_xf = float(seg.get('out_xfade', next_xf)) if i + 1 < len(segs) else 0.0
+        s_start = max(0.0, t0 - in_xf * 0.5)
+        s_end = min(float(dur), t1 + out_xf * 0.5)
         seg_dur = s_end - s_start
         x = _decode_audio(path, ch=2, sr=sr)
         g = float(entry.get('gain_db', 0.0)) + float(seg.get('gain_db', 0.0))
         if g:
             x = x * (10.0 ** (g / 20.0))
         seg_audio = _loop_or_trim_2d(x, seg_dur, sr=sr, xfade_s=0.9)
-        fade_in = min(int((xf if i > 0 else 0.05) * sr), seg_audio.shape[1])
-        fade_out = min(int((float(seg.get('out_xfade', 0.8)) if i < len(segs) - 1 else 0.0) * sr), seg_audio.shape[1])
+        fade_in = min(int((in_xf if i > 0 else 0.05) * sr), seg_audio.shape[1])
+        fade_out = min(int(out_xf * sr), seg_audio.shape[1])
         if fade_in > 1:
             seg_audio[:, :fade_in] *= np.sin(np.linspace(0, np.pi / 2, fade_in, dtype=np.float32))[None, :]
         if fade_out > 1:
@@ -219,16 +221,18 @@ def build_music(M, dur, when_fn, out_wav, sr=DEFAULT_SR):
 
     lufs = float(M.get('lufs', -26))
     raw_wav = out_wav.replace('.wav', '_libraw.wav')
-    subprocess.run(
-        ['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ar', str(sr), '-ac', '2', '-i', '-', raw_wav],
-        input=np.ascontiguousarray(bus.T, dtype=np.float32).tobytes(), check=True,
-    )
-    subprocess.run(
-        ['ffmpeg', '-v', 'error', '-y', '-i', raw_wav, '-af', f'loudnorm=I={lufs}:TP=-3:LRA=11', '-ar', str(sr), out_wav],
-        check=True,
-    )
-    if os.path.exists(raw_wav):
-        os.remove(raw_wav)
+    try:
+        subprocess.run(
+            ['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ar', str(sr), '-ac', '2', '-i', '-', raw_wav],
+            input=np.ascontiguousarray(bus.T, dtype=np.float32).tobytes(), check=True,
+        )
+        subprocess.run(
+            ['ffmpeg', '-v', 'error', '-y', '-i', raw_wav, '-af', f'loudnorm=I={lufs}:TP=-3:LRA=11', '-ar', str(sr), out_wav],
+            check=True,
+        )
+    finally:
+        if os.path.exists(raw_wav):
+            os.remove(raw_wav)
 
 def _probe(path):
     r = subprocess.run(

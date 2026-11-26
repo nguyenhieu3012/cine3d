@@ -169,11 +169,15 @@ function buildFan(cfg, opts) {
     for (let i = 0; i < 2600; i++) { const yw = (hash(i * 1.7 + 3) * 2 - 1) * 58, pt = -6 - hash(i * 2.9 + 1) * 56, rn = Math.hypot(yw / 58, (pt + 34) / 29); if (rn > 1) continue; const mouthZone = Math.hypot(yw / 15, (pt - MP) / 5.5) < 1; if (mouthZone) continue; if (pt > -15.5 && Math.abs(yw) > 20) continue; if (pt > -12) continue; if (hash(i * 7.3) > clamp((1 - rn) * 3 + 0.2)) continue; c.fillStyle = `rgba(28,16,10,${0.35 + hash(i * 4.4) * 0.4})`; c.beginPath(); c.arc(X(yw), Y(pt), (0.3 + hash(i * 5.1) * 0.25) * k, 0, 7); c.fill(); }
   }
 
+  let _lastFaceKey = '';
   function drawFace(f, talk, t) {
+    const bl = blink(t, seed), open = clamp(f.eye * (1 - bl)), sz = f.size || 1, tk = talk;
+    const tDyn = (tk > 0.001 || (f.sweat || 0) > 0.05 || (f.tear || 0) > 0.05) ? t.toFixed(4) : '';
+    const fKey = `${open.toFixed(4)}|${sz.toFixed(4)}|${tk.toFixed(4)}|${(f.blush || 0).toFixed(3)}|${(f.arc || 0).toFixed(2)}|${(f.px || 0).toFixed(3)}|${(f.py || 0).toFixed(3)}|${(f.pup ?? 1).toFixed(3)}|${(f.brow || 0).toFixed(3)}|${(f.browL || 0).toFixed(3)}|${(f.browR || 0).toFixed(3)}|${(f.tilt || 0).toFixed(3)}|${(f.open || 0).toFixed(3)}|${(f.wide || 1).toFixed(3)}|${(f.smile || 0).toFixed(3)}|${(f.smirk || 0).toFixed(3)}|${(f.tongue || 0).toFixed(2)}|${(f.teeth || 0).toFixed(2)}|${(f.sweat || 0).toFixed(2)}|${(f.tear || 0).toFixed(2)}|${tDyn}`;
+    if (fKey === _lastFaceKey) return; _lastFaceKey = fKey;
     const c = face.ctx, S = face.size, k = face.px, X = (d) => S / 2 + d * k, Y = (d) => S / 2 - d * k;
     c.clearRect(0, 0, S, S); c.lineCap = 'round'; c.lineJoin = 'round';
     if (cfg.stubble) c.drawImage(stub, 0, 0);
-    const bl = blink(t, seed), open = clamp(f.eye * (1 - bl)), sz = f.size || 1, tk = talk;
     // cheeks
     if (f.blush > 0.01) for (const s of [-1, 1]) { const x = X(s * (EY + 4)), y = Y(-9), r = 8.5 * k, g = c.createRadialGradient(x, y, 1, x, y, r); g.addColorStop(0, `rgba(${cfg.blushRGB},${0.42 * f.blush})`); g.addColorStop(1, `rgba(${cfg.blushRGB},0)`); c.fillStyle = g; c.fillRect(x - r, y - r, 2 * r, 2 * r); }
     // eyes

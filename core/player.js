@@ -11,7 +11,7 @@ import { makeTouch, touchLean } from './touch.js';
 
 const EMO_T = 0.2, POSE_T = 0.34, LOOK_T = 0.3;
 
-export function createPlayer(stage, set, cast, ep) {
+export function createPlayer(stage, set, cast, ep, { facePlus = null } = {}) {
   const names = Object.keys(cast), shots = ep.shots, lines = ep.lines || [];
   // per character: the ordered list of emotion / pose / look changes (from lines and acts)
   const track = {}; for (const n of names) track[n] = { emo: [{ t: -9, v: 'neutral' }], pose: [{ t: -9, v: 'rest' }], look: [], nod: [] };
@@ -51,9 +51,9 @@ export function createPlayer(stage, set, cast, ep) {
   // and "is speaking" ramps in and out instead of switching, so nothing pops on a syllable or at the start of a line
   const talkMouth = (who, t) => (talkOf(who, t - 1 / 60) + 2 * talkOf(who, t) + talkOf(who, t + 1 / 60)) / 4;
   const talkSlow = (who, t) => { let a = 0; for (let i = -4; i <= 4; i++) a += talkOf(who, t + i * 0.03) * (5 - Math.abs(i)); return a / 25; };
-  const isSpk = (who, tt) => { const l = lines.find((q) => tt >= q.t0 - 0.05 && tt <= q.t1 + 0.05); return l && !l.think && l.who === who ? 1 : 0; };
+  const isSpk = (who, tt) => (lines.some((q) => !q.think && q.who === who && tt >= q.t0 - 0.05 && tt <= q.t1 + 0.05) ? 1 : 0);
   const spkK = (who, t) => { let a = 0; for (let i = -4; i <= 4; i++) a += isSpk(who, t + i * 0.04) * (5 - Math.abs(i)); return a / 25; };
-  const speakerAt = (t) => lines.find((l) => t >= l.t0 - 0.05 && t <= l.t1 + 0.05)?.who;
+  const speakerAt = (t) => lines.find((l) => !l.think && t >= l.t0 - 0.05 && t <= l.t1 + 0.05)?.who;
   const shotAt = (t) => shots.find((s) => t >= s.t0 && t < s.t1) || shots[shots.length - 1];
   // act2 (core/act2.js, 22/11): an opt-in acting layer. ep.act2 = true | { knobs }, or the page flag &act2=1 (&act2=0 forces it off, &a2_<knob>=<number> overrides a knob). Off = nothing below runs and the picture is unchanged.
   const qs = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams(), a2q = qs.get('act2');
@@ -94,7 +94,7 @@ export function createPlayer(stage, set, cast, ep) {
       ...extra, ...fxN, face, talk, yaw: yaw + nodY, pitch: pitch + nodP, roll: 0.06 * clamp(face.skew || 0) + lerp(e0.v === 'sad' ? -0.07 : 0, e1.v === 'sad' ? -0.07 : 0, ke),   // the sad head tilt blends out as well as in (it used to snap back in one frame)
       lean: sk * 0.035 + slow * 0.012, twist: yaw * 0.12, bob: slow * 0.004 * Math.sin(t * 11), talkSlow: slow,
       l: blendVec(A.l, B.l, kp), r: blendVec(A.r, B.r, kp), shrug: lerp(A.shrug || 0, B.shrug || 0, clamp(kp)), phone: lerp(A.phone || 0, B.phone || 0, clamp(kp)), cup: lerp(A.cup || 0, B.cup || 0, clamp(kp)), _what: what,
-      _emo: [e0.v, e1.v, ke], _pose: [p0.v, p1.v, kp], _lookAt: exportOn ? lookTarget(c, what, camPos).toArray() : undefined,   // read by tools/dump.cjs (export for other renderers); nothing in the picture uses them
+      _emo: [e0.v, e1.v, ke], _pose: [p0.v, p1.v, kp], _lookAt: (exportOn || (facePlus && facePlus.on)) ? lookTarget(c, what, camPos).toArray() : undefined,   // read by tools/dump.cjs and live facePlus (gaze leads head)
     };
     if (P_.touch) P_.lean += touchLean(P_.touch, c, P_, P_.lean);   // 22/11: lean in to reach a touched surface
     if (!a2) return P_;
@@ -175,7 +175,7 @@ export function createPlayer(stage, set, cast, ep) {
         if (DRV) drvLook(shot, tReal);
         // two passes: place the camera from the current heads, pose (eyes may look at the camera), then re-solve for the final heads
         const cfx = fxAt('cam', tt), so = { aspect: stage.W / stage.H, dofK: ep.dof ?? 1, partners: ep.partners, fx: cfx, drv: drvCam(shot, tReal), prep: prep.get(shot) }; let cam = (A2?.reset(), solve(shot, cast, tt, so));   // act2: reset() puts the cast in its rest state first, so the first camera solve (which the looks are aimed from) never sees the frame drawn before
-        const poseAll = (cp) => { for (const n of names) { const pp = poseOf(cast[n], tt, shot, cp, tReal); if (A2) A2.pre(cast[n]); cast[n].apply(pp, tt); if (A2) A2.post(cast[n], tt, (pp.stand ?? ep.castOpts?.[n]?.stand ?? 0) > 0.02 || usesLegs(pp), pp); } };
+        const poseAll = (cp) => { for (const n of names) { let pp = poseOf(cast[n], tt, shot, cp, tReal); if (facePlus && facePlus.on) pp = facePlus.apply(n, cast[n], pp, tReal); if (A2) A2.pre(cast[n]); cast[n].apply(pp, tt); if (A2) A2.post(cast[n], tt, (pp.stand ?? ep.castOpts?.[n]?.stand ?? 0) > 0.02 || usesLegs(pp), pp); } };
         poseAll(cam.pos);
         stage.scene.updateMatrixWorld(true);
         cam = solve(shot, cast, tt, so); applyCam(stage.camera, cam);
@@ -205,7 +205,7 @@ export function createPlayer(stage, set, cast, ep) {
       return cam;
     },
     // export for other renderers (ENGINE.md "Export for other renderers"): the scene state at t with no picture drawn (tools/dump.cjs reads the camera, characters, lights afterwards)
-    state(t) { exportOn = true; return this.frame(null, t, { overlays: false, noRender: true }); },
+    state(t) { exportOn = true; try { return this.frame(null, t, { overlays: false, noRender: true }); } finally { exportOn = false; } },
     // the 2-D layer alone on a TRANSPARENT ctx (tools/render.cjs pngseq --overlays-only): captions, hook, cards, every overlay of core/overlay*.js, without the 3-D picture
     overlayFrame(ctx, t) { return this.frame(ctx, t, { overlays: true, noRender: true, clear: true }); },
     // the set-swap BOARD alone (tools/render.cjs pngseq --board-only, for a second renderer that composites the cast over it): the player runs for t

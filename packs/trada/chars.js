@@ -262,10 +262,17 @@ export function makeTeo({ hoodie = '#f0b12e', seed = 1, bags = 0, sight = null, 
 
   // ---- the drawn face ----
   // xp (optional, only the faces-plus export passes it: packs/trada/faceplus.js): richer per-frame acting numbers drawn by this same code; null = the film's picture, unchanged
+  let _faceKey = '';
   function drawFace(f, talk, t, glow = 0, print = 0, xp = null) {
     if (xp) f = xp.face; const sk = xp ? xp.skw : (f.skew ? 1 : 0);
-    const c = face.ctx, S = face.size, cx = S / 2, ex = EY * face.px, ey = S / 2 - EP * face.py; c.clearRect(0, 0, S, S);
     const bl = xp ? xp.blink : blink(t, seed), open = clamp(f.eye * (1 - bl)), arc = clamp(f.arc), sz = f.size || 1;
+    const dynamic = !!xp || talk > 0.001 || (f.pin || 0) > 0.05 || (f.sweat || 0) > 0.05 || (f.tear || 0) > 0.05 || (f.quiver || 0) > 0.01;
+    if (!dynamic) {
+      const fk = `${open.toFixed(4)}|${arc.toFixed(4)}|${sz.toFixed(4)}|${(f.px || 0).toFixed(4)}|${(f.py || 0).toFixed(4)}|${(f.blush || 0).toFixed(4)}|${(f.brow || 0).toFixed(4)}|${(f.tilt || 0).toFixed(4)}|${(f.smile || 0).toFixed(4)}|${(f.open || 0).toFixed(4)}|${(f.wide || 1).toFixed(4)}|${sk}|${(f.wet || 0).toFixed(4)}|${(f.gape || 0).toFixed(4)}|${glow.toFixed(4)}|${print.toFixed(4)}`;
+      if (fk === _faceKey) return;
+      _faceKey = fk;
+    } else _faceKey = '';
+    const c = face.ctx, S = face.size, cx = S / 2, ex = EY * face.px, ey = S / 2 - EP * face.py; c.clearRect(0, 0, S, S);
     // blush
     if (f.blush > 0.01) for (const s of [-1, 1]) { const g = c.createRadialGradient(cx + s * 100, ey + 78, 2, cx + s * 100, ey + 78, 40); g.addColorStop(0, `rgba(255,112,128,${0.62 * f.blush})`); g.addColorStop(1, 'rgba(255,120,130,0)'); c.fillStyle = g; c.fillRect(cx + s * 100 - 40, ey + 40, 80, 80); }
     // eyes (inside the rims)
@@ -535,13 +542,21 @@ export function makeBip({ seed = 2, plate: plateOut = true, stand: standDef = 0,
   const plugLight = ball(0.012, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.6, 2.4, 1.8), toneMapped: false }), [0, 0, 0], root, { cast: false }); plugLight.visible = false; plugLight.userData.noOutline = true;
 
   // xp: see Teo's drawFace (faces-plus export only; null = unchanged). xp.ss scales the glow blur when the export draws the canvas larger than 512 px
+  let _faceKeyB = '';
   function drawFace(f, talk, t, dim = 1, tr = 0, xp = null) {
     if (xp) f = xp.face; const sk = xp ? xp.skw : (f.skew ? 1 : 0), SS = xp ? xp.ss : 1;
+    const bl = xp ? xp.blink : blink(t, seed + 5), k = 1 - bl * 0.92;
+    const dynamic = !!xp || (f.wave || 0) > 0.5 || !!f.scan;
+    if (!dynamic) {
+      const fk = `${bl.toFixed(4)}|${dim.toFixed(4)}|${tr.toFixed(4)}|${talk.toFixed(4)}|${(f.h || 0).toFixed(4)}|${(f.arc || 0).toFixed(4)}|${(f.tilt || 0).toFixed(4)}|${(f.w || 1).toFixed(4)}|${(f.round || 0).toFixed(4)}|${(f.smile || 0).toFixed(4)}|${(f.open || 0).toFixed(4)}|${(f.blush || 0).toFixed(4)}|${(f.heart || 0).toFixed(4)}|${(f.px || 0).toFixed(4)}|${(f.py || 0).toFixed(4)}|${sk}|${(f.pucker || 0).toFixed(4)}`;
+      if (fk === _faceKeyB) return;
+      _faceKeyB = fk;
+    } else _faceKeyB = '';
     // the old Bíp, by measurement of the 2-D frames: bars 22 % of the visor wide, 3 : 1, centres 16 % either side of the middle, 40 % down;
     // mouth a short flat dash at 71 %; cheeks far out at 33 %, 74 %. Flat bars close together = the judging stare. Do not make them rounder or wider apart.
     const c = faceT.userData.ctx, W = 512, Hh = 352, cx = W / 2, ey = 141; c.clearRect(0, 0, W, Hh);
     if (dim < 1) c.globalAlpha = clamp(dim);
-    const bl = xp ? xp.blink : blink(t, seed + 5), k = 1 - bl * 0.92; c.shadowColor = CY; c.shadowBlur = 16 * SS; c.fillStyle = CY; c.strokeStyle = CY; c.lineCap = 'round';
+    c.shadowColor = CY; c.shadowBlur = 16 * SS; c.fillStyle = CY; c.strokeStyle = CY; c.lineCap = 'round';
     for (const s of [-1, 1]) {
       const x = cx + s * 82 + (f.px || 0) * 20, y = ey + (f.py || 0) * 16, w = 113 * (f.w || 1), h = 37 * f.h * k * (xp ? xp.hk[s > 0 ? 1 : 0] : 1);
       c.save(); c.translate(x, y); c.rotate(-s * f.tilt * 0.3 + (s > 0 ? -0.12 * sk : 0) + (xp ? xp.rot : 0));

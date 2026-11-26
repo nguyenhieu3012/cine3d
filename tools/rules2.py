@@ -68,9 +68,17 @@ def animatic_owner_ok(id):
     if rec.get('hash') != h: return False, 'the animatic changed after the owner approved it'
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import pipeline as P
-        cur = P.judged_hash(P.Ep(id).beats)
-        if rec.get('jhash') and cur and rec['jhash'] != cur: return False, 'the script text changed after the owner approved the animatic'
-    except Exception: pass
+        bp = P.Ep(id).beats
+        cur = P.judged_hash(bp)
+        if not cur: return False, f'episodes/{id}.beats.json missing or invalid'
+        if rec.get('jhash'):
+            if rec['jhash'] != cur: return False, 'the script text changed after the owner approved the animatic'
+        elif rec.get('hash'):
+            if rec['hash'] != P.sha(bp): return False, 'the script changed after the owner approved the animatic'
+        else:
+            return False, 'animatic_owner record has no script hash'
+    except Exception as e:
+        return False, f'script hash verification failed: {e}'
     return True, 'ok'
 
 def credit_owner_ok(id):
@@ -86,11 +94,24 @@ def credit_owner_ok(id):
     if not sg or sg.get('verdict') != 'PASS': return False, 'script_gate has not passed'
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import pipeline as P
-        cur = P.judged_hash(P.Ep(id).beats)
+        bp = P.Ep(id).beats
+        cur = P.judged_hash(bp)
         if not cur: return False, f'episodes/{id}.beats.json missing or invalid'
-        if sg.get('jhash') and sg['jhash'] != cur: return False, 'script_gate is stale (the script text changed since script_gate PASS)'
-        if rec.get('jhash') and rec['jhash'] != cur: return False, 'the script text changed after the owner approved voice credit'
-    except Exception: pass
+        cur_raw = P.sha(bp)
+        if sg.get('jhash'):
+            if sg['jhash'] != cur: return False, 'script_gate is stale (the script text changed since script_gate PASS)'
+        elif sg.get('hash'):
+            if sg['hash'] != cur_raw: return False, 'script_gate is stale (the script changed since script_gate PASS)'
+        else:
+            return False, 'script_gate record has no script hash'
+        if rec.get('jhash'):
+            if rec['jhash'] != cur: return False, 'the script text changed after the owner approved voice credit'
+        elif rec.get('hash'):
+            if rec['hash'] != cur_raw: return False, 'the script changed after the owner approved voice credit'
+        else:
+            return False, 'credit_owner record has no script hash'
+    except Exception as e:
+        return False, f'script hash verification failed: {e}'
     return True, 'ok'
 
 def voice_unlocked(id):

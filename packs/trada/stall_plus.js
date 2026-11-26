@@ -13,7 +13,7 @@ import { hash, lerp, smooth, noise1, canvasTex, std, emis, mesh, box, cyl, ball,
 import { smokeColumn, makeBike } from './street.js';
 import { breeze, walk, isPlane, detailTex, texStats, texBytes, triCount } from './stall_plus_lib.js';
 import { buildStreetPlus } from './stall_plus_street.js';
-import './stall_plus_preload.js';   // top-level await: decodes the detail maps before anything that imports this file (the stall set) is built, so no episode has to import it by hand
+// Note: main.js lazy-imports './packs/trada/stall_plus_preload.js' when set === 'stall' && setOpts.plus is truthy (avoids downloading 6x1K textures on goat / plus:false episodes).
 
 export function buildStallPlus(ctx) {
   const { g, scene, practicals, blades, bulbCable, bulbShade, keyBulb, bulbLight, cone, ket, stove, pot, movers, CX, block, steadyLights, abandoned, cold } = ctx;

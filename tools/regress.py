@@ -35,8 +35,14 @@ for ep, ts in EPS.items():
     for t in ts:
         a, b = f'{tmp}/t{t:.2f}.png', f'{ref}/t{t:.2f}.png'
         if not os.path.exists(b): print(f'  t{t:.2f}: no reference (run --save once the look is approved)'); continue
-        r = subprocess.run(['ffmpeg', '-v', 'info', '-i', a, '-i', b, '-lavfi', 'psnr', '-f', 'null', '-'], capture_output=True, text=True).stderr
-        m = re.search(r'average:([0-9.inf]+)', r); p = float('inf') if not m or m.group(1) == 'inf' else float(m.group(1)); ok = p >= 38
+        r = subprocess.run(['ffmpeg', '-v', 'info', '-i', a, '-i', b, '-lavfi', 'psnr', '-f', 'null', '-'], capture_output=True, text=True)
+        m = re.search(r'average:([0-9.inf]+)', r.stderr)
+        if r.returncode != 0 or not m:
+            p, ok = -1.0, False
+            bad += 1
+            print(f'  t{t:.2f}: ERROR (ffmpeg psnr failed, rc={r.returncode})')
+            continue
+        p = float('inf') if m.group(1) == 'inf' else float(m.group(1)); ok = p >= 38
         if not ok: bad += 1
         print(f'  t{t:.2f}: {"same" if ok else "CHANGED"} ({p:.1f} dB)')
 shutil.rmtree(f'{ROOT}/out/_regress_{os.getpid()}', ignore_errors=True)

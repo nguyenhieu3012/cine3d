@@ -57,8 +57,8 @@ const VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionM
 // the cast mask: white where a cast mesh (or its ink outline) is the nearest surface, black elsewhere; the set is drawn black as the occluder.
 // (the occluders are drawn BLACK, not depth-only: drawn after a cast mesh, a depth-only occluder would leave the white standing.) Rendered at output size with 4x MSAA (smooth edges), no shadows, no fog, no tone map.
 class CastMask {
-  constructor(W, H) {
-    this.rt = new THREE.WebGLRenderTarget(W, H, { samples: 4, type: THREE.UnsignedByteType });
+  constructor(W, H, maxSamples = 4) {
+    this.rt = new THREE.WebGLRenderTarget(W, H, { samples: Math.max(1, Math.min(4, maxSamples)), type: THREE.UnsignedByteType });
     this.white = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide].map((side) => new THREE.MeshBasicMaterial({ color: 0xffffff, side, fog: false }));
     this.occ = [THREE.FrontSide, THREE.BackSide, THREE.DoubleSide].map((side) => new THREE.MeshBasicMaterial({ color: 0x000000, side, fog: false }));
     this.roots = new Set(); this.c0 = new THREE.Color();
@@ -97,7 +97,7 @@ const AO_SHADER = `
     vec2 px = 1.0 / res; vec3 P = vpos(vUv);
     vec3 pr = vpos(vUv + vec2(px.x, 0.0)), pl = vpos(vUv - vec2(px.x, 0.0)), pu = vpos(vUv + vec2(0.0, px.y)), pd = vpos(vUv - vec2(0.0, px.y));
     vec3 dx = abs(pr.z - P.z) < abs(P.z - pl.z) ? pr - P : P - pl, dy = abs(pu.z - P.z) < abs(P.z - pd.z) ? pu - P : P - pd;
-    vec3 N = normalize(cross(dx, dy));
+    vec3 cr = cross(dx, dy); vec3 N = length(cr) > 1e-6 ? normalize(cr) : vec3(0.0, 0.0, 1.0);
     float rpx = clamp(radius * proj11 * 0.5 * res.y / max(0.05, -P.z), 2.0, maxPx);
     float rot = ign(gl_FragCoord.xy) * 6.2831853, sum = 0.0;
     for (int i = 0; i < 16; i++) {
@@ -127,8 +127,8 @@ const AO_APPLY = `
 
 export class Look2Pass extends Pass {
   // mask + AO; reads the scene pass (colour in readBuffer, depth in depthTexture), writes the occluded colour
-  constructor(L, scenePass, W, H, w, h) {
-    super(); this.L = L; this.sp = scenePass; this.needsSwap = true; this.mask = new CastMask(W, H);
+  constructor(L, scenePass, W, H, w, h, maxSamples = 4) {
+    super(); this.L = L; this.sp = scenePass; this.needsSwap = true; this.mask = new CastMask(W, H, maxSamples);
     const rt = () => new THREE.WebGLRenderTarget(w, h, { type: THREE.UnsignedByteType, depthBuffer: false });
     this.a = rt(); this.b = rt();
     const mk = (fs, u) => new FullScreenQuad(new THREE.ShaderMaterial({ uniforms: u, vertexShader: VERT, fragmentShader: fs, depthTest: false, depthWrite: false }));
@@ -161,7 +161,7 @@ export const DOF2 = (taps, bokeh) => ({
     #include <packing>
     uniform sampler2D tDiffuse, tDepth; uniform float near, far, focus, aperture, maxBlur; uniform vec2 res; varying vec2 vUv;
     float viewZ(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, near, far); }
-    float coc(float z){ return min(maxBlur, aperture * abs(1.0 / focus - 1.0 / z)); }
+    float coc(float z){ return min(maxBlur, aperture * abs(1.0 / max(focus, 1e-3) - 1.0 / max(z, 1e-3))); }
     float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
     void main(){
       vec4 c0 = texture2D(tDiffuse, vUv);
@@ -232,7 +232,8 @@ export const RESOLVE = {
       vec3 w = amp * (-1.0 / mix(8.0, 5.0, k)) * step(0.001, k);
       vec3 o = (w * (b + d + f + hh) + e) / (1.0 + 4.0 * w);
       o += (h(vUv * outRes + fract(time) * 91.7) - 0.5) * grain * (1.0 - m) * e4.a;
-      gl_FragColor = vec4(clamp(o, 0.0, 1.0), e4.a);
+      float aOut = clamp(e4.a, 0.0, 1.0);
+      gl_FragColor = vec4(clamp(o, 0.0, aOut), aOut);
     }`,
 };
 

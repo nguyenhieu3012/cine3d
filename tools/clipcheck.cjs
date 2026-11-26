@@ -18,11 +18,11 @@
 //   touch    ep.touch entries (hand ON a point / surface): the hand ball ends > 0.06 m from its target, or the declared point is > 0.05 m off the real surface under it; ep.touchProps = [{ who, hand: 'L'|'R'|'any', prop: '<object name>', t0, t1 }]: hand within 0.06 m of that object's surface
 //   reads    ep.reads = [{ text: 'GIẤY XE', t0, t1 }] (or prop: '<object name>'): the text prop (canvas texture) must be whole inside the frame, facing the camera, >= 90 % unblocked, for the whole window, which lasts >= 1.0 + characters/12 s
 //   waiver   a waiver wider than 25 % of the film, without a named object (`who`, or "Object: ..." in the reason, or a cast member in the reason), without a reason, or `check: 'clip'` for everything -> FAIL, and it is not applied
-const { chromium } = require('playwright'), http = require('http'), fs = require('fs'), path = require('path');
-const ROOT = path.resolve(__dirname, '..'), args = process.argv.slice(2), flag = (n, d) => { const i = args.indexOf('--' + n); return i < 0 ? d : args[i + 1]; };
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.woff2': 'font/woff2', '.otf': 'font/otf' };
-const EPFILE = args.find((a) => /\.js$/.test(a) && !args[args.indexOf(a) - 1]?.startsWith('--'));
+const { chromium } = require('playwright'), fs = require('fs'), path = require('path'), { ROOT, GPU, READY_TIMEOUT, stripQuery, serve, flagOf } = require('./_page.cjs');
+const args = process.argv.slice(2), flag = flagOf(args);
+const EPFILE = args.find((a, i) => /\.js(&|\?|$)/.test(a) && !args[i - 1]?.startsWith('--'));
 if (!EPFILE) { console.log('usage: node tools/clipcheck.cjs episodes/<id>.js [--step 0.1] [--t0 a --t1 b]'); process.exit(2); }
+const EPPATH = stripQuery(EPFILE);
 // tolerances (metres unless noted). pen: body part inside a set solid. cc: depth of two body volumes. det: gap to every body volume. slide: m/s of a planted foot.
 const TOL = { pen: 0.03, penTop: 0.065, penSeat: 0.09, cc: 0.07, crowd: 0.15, det: 0.015, slide: 0.2, below: 0.03, float: 0.06, floatT: 0.3, frozenT: 1.5, dupD: 0.9, ...Object.fromEntries((flag('tol', '') || '').split(',').filter(Boolean).map((kv) => kv.split('=')).map(([k, v]) => [k, Number(v)])) };
 const STEP = Number(flag('step', 0.1)), NSTILL = Number(flag('stills', 5)), VERBOSE = args.includes('--verbose');
@@ -120,7 +120,7 @@ async function pageInit(TOL) {
   let occNow = null; const occListNow = () => (occNow ||= (() => { const a = []; scene.traverse((m) => { if (m.isMesh && !m.userData.isOutline && visible(m)) { const mt = matOf(m); if (mt && mt.visible !== false && !mt.transparent && mt.opacity >= 0.99) a.push(m); } }); return a; })());
   function step(t) {
     occNow = null; const shotIdx = ep.shots.findIndex((s) => t >= s.t0 && t < s.t1), res = { t, shot: shotIdx < 0 ? ep.shots.length - 1 : shotIdx };
-    window.player.frame(document.getElementById('film').getContext('2d'), t, { overlays: false });
+    window.player.frame(null, t, { overlays: false, noRender: true });
     scene.updateMatrixWorld(true); cam.updateMatrixWorld(true); cam.updateProjectionMatrix(); PM.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse.copy(cam.matrixWorld).invert()); frustum.setFromProjectionMatrix(PM);
     Minv.clear(); occ = null; cam.getWorldPosition(camPos); const inView = (p) => frustum.containsPoint(p);
     // solids this step
@@ -192,7 +192,7 @@ async function pageInit(TOL) {
     const gnd = [], feet = [];
     for (const W of U_) { const c = W.u.root.getWorldPosition(new V3()), gy = groundAt(c.x, c.z); const rider = ep.rides?.[W.u.char] && (W.fx.ride || 0) > 0.02;
       const gy0 = gy, gw0 = gwho; let sup = supportAt(W.box.getCenter(new V3()).x, W.box.getCenter(new V3()).z, W.low);
-      if (W.low > gy + TOL.float && sup < -1e8) { /* floating? is any set mesh (a trolley's wire floor, a crate) under the lowest point */ const ctr = W.box.getCenter(new V3()), bx = new Box3(); scene.traverse((m) => { if (sup > -1e8 || !m.isMesh || inUnit.has(m) || !m.visible || m.userData.isOutline || m.material.transparent) return; bx.setFromObject(m); if (bx.min.x - 0.2 < ctr.x && bx.max.x + 0.2 > ctr.x && bx.min.z - 0.2 < ctr.z && bx.max.z + 0.2 > ctr.z && bx.max.y < W.low + 0.08 && bx.max.y > W.low - 0.25) sup = bx.max.y; }); }
+      if (W.low > gy + TOL.float && sup < -1e8) { /* floating? is any set mesh (a trolley's wire floor, a crate) under the lowest point */ const ctr = W.box.getCenter(new V3()), bx = new Box3(); scene.traverse((m) => { const mat = m.isMesh ? matOf(m) : null; if (sup > -1e8 || !m.isMesh || inUnit.has(m) || !m.visible || m.userData.isOutline || !mat || mat.transparent) return; bx.setFromObject(m); if (bx.min.x - 0.2 < ctr.x && bx.max.x + 0.2 > ctr.x && bx.min.z - 0.2 < ctr.z && bx.max.z + 0.2 > ctr.z && bx.max.y < W.low + 0.08 && bx.max.y > W.low - 0.25) sup = bx.max.y; }); }
       gnd.push({ sup, gw: gw0, who: W.u.name, low: W.low, lowPart: W.lowD.label + ' ' + W.lowD.type.replace('Geometry', '') + ' ' + W.lowD.max.toFixed(2) + ' m', gy, rider: !!rider, vis: W.vis, at: [c.x, W.low, c.z], gait: GAITK.reduce((s, k) => s + (W.fx[k] || 0), 0), yfx: W.fx.y || 0, dragLeg: (W.fx.lurch || 0) > 0.1 || (W.fx.charge || 0) > 0.1, pile: W.fx.pile || 0, standing: !!((fxT[W.u.char]?.stand ? (W.fx.stand || 0) > 0.5 : ep.castOpts?.[W.u.char]?.stand) || (W.fx.stand || 0) > 0.5 || GAITK.some((k) => (W.fx[k] || 0) > 0.3) || W.u.c?.zombie || W.u.char === 'victim' || !W.u.c), kneel: W.fx.kneel || 0, fall: W.fx.fall || 0, trip: W.fx.trip || 0 });
       if (W.u.char !== 'horde') for (const d of W.parts) { if (d.type === 'TubeGeometry' || d.m.userData.noodle || d.max >= 0.35 || d.c.y - W.low >= 0.1 || d.label === 'hand') continue; const mn = Math.min(...d.pts.map((p) => p.y)), gy2 = groundAt(d.c.x, d.c.z), lx = W.u.root.worldToLocal(d.c.clone()).x; feet.push({ who: W.u.name, id: W.u.meshes.indexOf(d.m), side: lx < 0 ? '-1' : '1', x: d.c.x, z: d.c.z, h: mn - gy2 }); } }
     res.gnd = gnd; res.feet = feet;
@@ -249,13 +249,13 @@ async function pageInit(TOL) {
 
 // ------------------------------------------------------------------------------------------------------------------------------
 (async () => {
-  const srv = await new Promise((res) => { const s = http.createServer((req, rsp) => { const f = path.join(ROOT, decodeURIComponent(req.url.split('?')[0])); fs.readFile(f, (e, d) => { if (e) { rsp.writeHead(404); return rsp.end(); } rsp.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' }); rsp.end(d); }); }); s.listen(0, () => res(s)); });
-  const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] }), p = await b.newPage({ viewport: { width: 540, height: 960 } }); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+  const srv = await serve();
+  const b = await chromium.launch({ args: GPU }), p = await b.newPage({ viewport: { width: 540, height: 960 } }); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
   await p.addInitScript(() => { window.__cvText = new WeakMap(); const P = CanvasRenderingContext2D.prototype; for (const k of ['fillText', 'strokeText']) { const o = P[k]; P[k] = function (tx, ...a) { try { const c = this.canvas; if (c && typeof tx === 'string' && tx.trim()) { let L = window.__cvText.get(c); if (!L) window.__cvText.set(c, (L = [])); if (L.length < 40 && !L.includes(tx)) L.push(tx); } } catch (e) {} return o.call(this, tx, ...a); }; } });   // v5: which canvas carries which text (reads)
-  await p.goto(`http://localhost:${srv.address().port}/index.html?render=1&ep=${EPFILE}`); await p.waitForFunction(() => window.filmReady, null, { timeout: 60000 });
-  const T0 = Date.now(), info = await p.evaluate(pageInit, TOL), id = path.basename(EPFILE, '.js'), t0 = Number(flag('t0', 0)), t1 = Math.min(Number(flag('t1', info.dur)), info.dur);
+  await p.goto(`http://localhost:${srv.address().port}/index.html?render=1&nowarm=1&ep=${EPFILE}`); await p.waitForFunction(() => window.filmReady, null, { timeout: READY_TIMEOUT });
+  const T0 = Date.now(), info = await p.evaluate(pageInit, TOL), id = path.basename(EPPATH, '.js'), t0 = Number(flag('t0', 0)), t1 = Math.min(Number(flag('t1', info.dur)), info.dur);
   const samples = []; const wanted = (flag('still', '') || '').split(',').filter(Boolean).map(Number);
-  for (const t of wanted) { fs.mkdirSync(path.join(ROOT, 'out', path.basename(EPFILE, '.js')), { recursive: true }); const d = await p.evaluate((t) => { window.stage.render = window.__stageRender; window.seek(t, { overlays: true }); const d = document.getElementById('film').toDataURL('image/jpeg', 0.88).split(',')[1]; window.stage.render = () => {}; return d; }, t); fs.writeFileSync(path.join(ROOT, 'out', path.basename(EPFILE, '.js'), `clip_at_${t.toFixed(2)}.jpg`), Buffer.from(d, 'base64')); }
+  for (const t of wanted) { fs.mkdirSync(path.join(ROOT, 'out', id), { recursive: true }); const d = await p.evaluate((t) => { window.stage.render = window.__stageRender; window.seek(t, { overlays: true }); const d = document.getElementById('film').toDataURL('image/jpeg', 0.88).split(',')[1]; window.stage.render = () => {}; return d; }, t); fs.writeFileSync(path.join(ROOT, 'out', id, `clip_at_${t.toFixed(2)}.jpg`), Buffer.from(d, 'base64')); }
   for (let t = t0; t <= t1 + 1e-9; t += STEP) samples.push(await p.evaluate((t) => window.__cc.step(t), +t.toFixed(4)));
   if (flag('raw')) fs.writeFileSync(flag('raw'), JSON.stringify(samples));
   // ---------------- aggregate: samples -> runs (one thing, consecutive steps) -> findings (the same thing over the whole film) ----------------
@@ -321,8 +321,8 @@ async function pageInit(TOL) {
   const sorted = [...counted].filter((r) => !r.nostill).sort((a, b) => sc(b) - sc(a)), seen = new Set(), worst = []; for (const r of sorted) { const k = r.check; if (!seen.has(k) && worst.length < NSTILL) { seen.add(k); worst.push(r); } } for (const r of sorted) if (worst.length < NSTILL && !worst.includes(r)) worst.push(r);
   const dir = path.join(ROOT, 'out', id); if (worst.length) fs.mkdirSync(dir, { recursive: true });
   for (const f of fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => /^clip_\d+_.*\.jpg$/.test(x)) : []) fs.unlinkSync(path.join(dir, f));
-  for (const [i, r] of worst.entries()) { const data = await p.evaluate(async ([t, at, label]) => { const THREE = window.__cc.THREE; window.stage.render = window.__stageRender; window.seek(t, { overlays: true }); const c = document.createElement('canvas'); c.width = 1080; c.height = 1920; const x = c.getContext('2d'); x.drawImage(document.getElementById('film'), 0, 0);
-      const v = new THREE.Vector3(...at).project(window.stage.camera), px = (v.x * 0.5 + 0.5) * 1080, py = (-v.y * 0.5 + 0.5) * 1920; x.strokeStyle = '#ff2bd6'; x.lineWidth = 8; x.beginPath(); x.arc(px, py, 70, 0, 7); x.stroke(); x.fillStyle = '#ff2bd6'; x.fillRect(0, 0, 1080, 64); x.fillStyle = '#fff'; x.font = 'bold 40px sans-serif'; x.fillText(label, 14, 46);
+  for (const [i, r] of worst.entries()) { const data = await p.evaluate(async ([t, at, label]) => { const THREE = window.__cc.THREE; window.stage.render = window.__stageRender; window.seek(t, { overlays: true }); const CW = window.stage.W || 1080, CH = window.stage.H || 1920, c = document.createElement('canvas'); c.width = CW; c.height = CH; const x = c.getContext('2d'); x.drawImage(document.getElementById('film'), 0, 0);
+      const v = new THREE.Vector3(...at).project(window.stage.camera), px = (v.x * 0.5 + 0.5) * CW, py = (-v.y * 0.5 + 0.5) * CH; x.strokeStyle = '#ff2bd6'; x.lineWidth = 8; x.beginPath(); x.arc(px, py, 70, 0, 7); x.stroke(); x.fillStyle = '#ff2bd6'; x.fillRect(0, 0, CW, 64); x.fillStyle = '#fff'; x.font = 'bold 40px sans-serif'; x.fillText(label, 14, 46);
       window.stage.render = () => {}; return c.toDataURL('image/jpeg', 0.88).split(',')[1]; }, [r.tp, r.at, `${r.check} ${r.who} t=${r.tp.toFixed(2)} ${r.mag.toFixed(3)}${r.unit}`]).catch(() => null);
     if (data) { r.still = `clip_${i + 1}_${r.check}_t${r.tp.toFixed(2)}.jpg`; fs.writeFileSync(path.join(dir, r.still), Buffer.from(data, 'base64')); } }
   // ---------------- report ----------------

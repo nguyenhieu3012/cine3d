@@ -29,9 +29,10 @@ function drawWidgetAvatar(ctx, kind, cx, cy, r, accent, fallbackChar) {
 function speechEnv(ep, who, t) {
   let amp = 0;
   (ep?.lines || []).forEach((l, i) => {
-    if (l.who !== who || t < l.t0 || t > l.t1) return;
+    if (l.who !== who || l.think || t < l.t0 || t > l.t1) return;
     const env = ep.lips?.[i];
-    amp = env ? clamp(env[Math.floor((t - l.t0) * 60)] ?? 0) : (0.35 + 0.55 * Math.abs(Math.sin(t * 11.5)) * (0.6 + 0.4 * Math.sin(t * 4.3)));
+    if (env) { const x = (t - l.t0) * 60, j = Math.floor(x); amp = clamp(lerp(env[j] ?? 0, env[j + 1] ?? env[j] ?? 0, x - j)); }
+    else amp = 0.35 + 0.55 * Math.abs(Math.sin(t * 11.5)) * (0.6 + 0.4 * Math.sin(t * 4.3));
   });
   return amp;
 }

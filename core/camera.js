@@ -20,7 +20,7 @@ export const fovOf = (f) => 2 * Math.atan(18 / f) / D2R;
 export const camEase = (u) => { u = clamp(u); return 0.82 * (1 - (1 - u) * (1 - u)) + 0.18 * u; };
 
 export function parseToken(tok) {
-  const m = /^(wide|all|two|ms|cu|ecu|ots)(?:_([a-z0-9]+?))?(?:_(lo|hi))?$/.exec(tok) || [];
+  const m = /^(wide|all|two|ms|cu|ecu|ots)(?:_([A-Za-z0-9_]+?))?(?:_(lo|hi))?$/.exec(tok) || [];
   let [, base, who, ang] = m; if (who === 'lo' || who === 'hi') { ang = who; who = undefined; }
   return { base: base || 'two', who, ang };
 }
@@ -60,7 +60,7 @@ function solveBase(shot, cast, t, { aspect = 9 / 16, dofK = 1, bandTop = 0.655, 
   const hs = subj.headWorld(new THREE.Vector3()), ho = other.headWorld(new THREE.Vector3());
   const vf0 = fovOf(f) * D2R;
 
-  if (base === 'wide') { _h.set((hs.x + ho.x) / 2, 1.05, (hs.z + ho.z) / 2); d = shot.dist || 4.6; if (f !== rig.f) d *= f / rig.f; focusAt = _h.clone(); az = (shot.v ? -1 : 1) * 5; }
+  if (base === 'wide' && !shot.frame) { _h.set((hs.x + ho.x) / 2, 1.05, (hs.z + ho.z) / 2); d = shot.dist || 4.6; if (f !== rig.f) d *= f / rig.f; focusAt = _h.clone(); az = (shot.v ? -1 : 1) * 5; }
   else if (base === 'all' || (shot.frame && (base === 'two' || base === 'wide'))) {
     // everybody in the cast (three or more: the stall lady standing behind, a customer)
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z = 0, R = 0; const hw = new THREE.Vector3();
@@ -78,10 +78,12 @@ function solveBase(shot, cast, t, { aspect = 9 / 16, dofK = 1, bandTop = 0.655, 
   }
   // moves
   let dz = 1, dAz = 0, dEl = 0, dx = 0, dy = 0;
-  if (move === 'push') dz = 1 - 0.055 * amt * e; else if (move === 'pull') dz = 1 - 0.055 * amt * (1 - e);
-  if (dz < 0.6) dz = 0.6;   // v4: a large `amt` (or a driven one) never pushes closer than 60 % of the framing distance
-  else if (move === 'orbit') dAz = (e - 0.5) * 9 * amt; else if (move === 'crane') { dEl = (e - 0.5) * 9 * amt; dy = (e - 0.5) * 0.12 * amt; }
+  if (move === 'push') dz = 1 - 0.055 * amt * e;
+  else if (move === 'pull') dz = 1 - 0.055 * amt * (1 - e);
+  else if (move === 'orbit') dAz = (e - 0.5) * 9 * amt;
+  else if (move === 'crane') { dEl = (e - 0.5) * 9 * amt; dy = (e - 0.5) * 0.12 * amt; }
   else if (move === 'drift') dx = (e - 0.5) * 0.09 * amt;
+  if (dz < 0.6) dz = 0.6;   // v4: a large `amt` (or a driven one) never pushes closer than 60 % of the framing distance
   az += dAz; el += dEl;
   // punch-in on a stressed word: +8 % over 0.4 s, then it holds
   for (const pt of [].concat(shot.punchAt ?? [])) if (t >= pt) dz *= 1 - (shot.punchPush ?? 0.08) * easeOut((t - pt) / (shot.punchDur ?? 0.4));
@@ -104,7 +106,7 @@ function solveBase(shot, cast, t, { aspect = 9 / 16, dofK = 1, bandTop = 0.655, 
   const m = new THREE.Matrix4().makeBasis(_r, _u, _f.clone().negate()), quat = new THREE.Quaternion().setFromRotationMatrix(m);
   quat.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(fbm1(t * 0.7, 3) * 0.0016 * (shot.shake ?? 1) + shk * 0.012 * fbm1(t * 3.1, 16), fbm1(t * 0.6, 4) * 0.0016 * (shot.shake ?? 1) + shk * 0.012 * fbm1(t * 2.7, 17), (shot.dutch || 0) * D2R + shk * 0.018 * fbm1(t * 2.2, 18))));
   if (dsk) quat.multiply(driftRot(dsk, t));
-  const focus = (shot.focusOn ? cast[shot.focusOn].headWorld(new THREE.Vector3()) : focusAt).distanceTo(_p);
+  const focus = (shot.focusOn && cast[shot.focusOn] ? cast[shot.focusOn].headWorld(new THREE.Vector3()) : focusAt).distanceTo(_p);
   const aperture = (shot.dof ?? rig.dof) * dofK * 26 * (f / 50) * (f / 50);
   return { pos: _p.clone(), quat, fov: fovOf(f), focus, aperture, base, who: subj.name, group: (base === 'all' || shot.frame) ? group : (base === 'two' || base === 'wide') ? [subj.name, other.name] : [subj.name] };
 }
@@ -117,7 +119,7 @@ function driftRot(k, t) { return _dr.setFromEuler(_de.set(k * 0.009 * fbm1(t * 1
 const _wq = new THREE.Quaternion(), _wy = new THREE.Vector3(0, 1, 0), WHIP_B = new WeakMap();
 // the second framing of a whip inside one shot: the same shot with the whip's `to` token (and optional rig / move / amt / punchAt / free of its own)
 const whipShot = (shot, to) => { let m = WHIP_B.get(shot); if (!m) WHIP_B.set(shot, m = {}); const W = shot.whip;
-  return (m[to] ??= { ...shot, cam: to, whip: null, rack: W.rack ?? null, rig: W.rig, free: W.free, focusOn: W.focusOn, dof: W.dof ?? shot.dof, move: W.move ?? shot.move, amt: W.amt ?? shot.amt, punchAt: W.punchAt, fTo: W.fTo }); };
+  return (m[to] ??= { ...shot, cam: to, whip: null, rack: W.rack ?? null, rig: W.rig ?? shot.rig, free: W.free ?? shot.free, focusOn: W.focusOn ?? shot.focusOn, dof: W.dof ?? shot.dof, move: W.move ?? shot.move, amt: W.amt ?? shot.amt, punchAt: W.punchAt ?? shot.punchAt, fTo: W.fTo ?? shot.fTo }); };
 const num = (x, d) => (typeof x === 'number' ? x : d);
 // where the whip of this shot is at time t: { k: 0..1 how fast the picture pans (for motion blur), yaw } (used by core/player.js for the blur)
 export function whipState(shot, t) {

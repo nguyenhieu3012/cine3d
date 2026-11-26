@@ -34,7 +34,7 @@ const DOF = {
     #include <packing>
     uniform sampler2D tDiffuse, tDepth; uniform float near, far, focus, aperture, maxBlur; uniform vec2 res; varying vec2 vUv;
     float viewZ(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, near, far); }
-    float coc(float z){ return min(maxBlur, aperture * abs(1.0 / focus - 1.0 / z)); }
+    float coc(float z){ return min(maxBlur, aperture * abs(1.0 / max(focus, 1e-3) - 1.0 / max(z, 1e-3))); }
     float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
     void main(){
       vec4 c0 = texture2D(tDiffuse, vUv);
@@ -58,12 +58,12 @@ const DOF = {
 // final grade in display space: contrast, saturation, temperature, split tone, vignette, a little grain, faint edge fringing
 const GRADE = {
   uniforms: {
-    tDiffuse: { value: null }, time: { value: 0 }, premul: { value: 0 }, contrast: { value: 1.08 }, sat: { value: 1.05 }, lift: { value: new THREE.Vector3(0, 0, 0) }, gain: { value: new THREE.Vector3(1, 1, 1) },
+    tDiffuse: { value: null }, time: { value: 0 }, premul: { value: 0 }, res: { value: new THREE.Vector2(1080, 1920) }, contrast: { value: 1.08 }, sat: { value: 1.05 }, lift: { value: new THREE.Vector3(0, 0, 0) }, gain: { value: new THREE.Vector3(1, 1, 1) },
     shadowTint: { value: new THREE.Vector3(0.0, 0.02, 0.05) }, hiTint: { value: new THREE.Vector3(0.03, 0.015, 0.0) }, vig: { value: 0.32 }, grain: { value: 0.018 }, fringe: { value: 0.0012 },
   },
   vertexShader: VERT,
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float time, premul, contrast, sat, vig, grain, fringe; uniform vec3 lift, gain, shadowTint, hiTint; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float time, premul, contrast, sat, vig, grain, fringe; uniform vec2 res; uniform vec3 lift, gain, shadowTint, hiTint; varying vec2 vUv;
     float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
       vec2 d = vUv - 0.5; float r2 = dot(d, d);
@@ -74,13 +74,13 @@ const GRADE = {
       c = mix(vec3(l), c, sat);
       c = (c - 0.5) * contrast + 0.5;
       c *= 1.0 - vig * smoothstep(0.18, 0.85, r2 * 1.6);
-      c += (h(vUv * vec2(1080.0, 1920.0) + fract(time) * 91.7) - 0.5) * grain;
-      float a0 = texture2D(tDiffuse, vUv).a;   // 1 everywhere unless a set swap (backdrop) is rendering the cast on a transparent background
+      c += (h(vUv * res + fract(time) * 91.7) - 0.5) * grain;
+      float a0 = min(1.0, texture2D(tDiffuse, vUv).a);   // 1 everywhere unless a set swap (backdrop) is rendering the cast on a transparent background
       gl_FragColor = vec4(clamp(c, 0.0, 1.0) * mix(1.0, a0, premul), mix(1.0, a0, premul));
     }`,
 };
 
-export function createStage({ W = 1080, H = 1920, ss = 1, tone = 'agx', exposure = 1, look2 = null } = {}) {
+export function createStage({ W = 1080, H = 1920, ss = 1, tone = 'agx', exposure = 1, look2 = null, lazyEnv = false } = {}) {
   // look2 (see core/look2.js): null / false = the old chain, untouched. An object = its knobs over LOOK2.
   const L2 = look2 ? { ...LOOK2, ...(typeof look2 === 'object' ? look2 : {}) } : null;
   if (L2) { if (!ss) ss = L2.ss; if (L2.tone) tone = L2.tone; }
@@ -94,27 +94,36 @@ export function createStage({ W = 1080, H = 1920, ss = 1, tone = 'agx', exposure
 
   const scene = new THREE.Scene(); scene.background = new THREE.Color('#05060c');
   const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 200);
-  const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.25;
+  let envReady = false;
+  const ensureEnv = () => {
+    if (envReady) return; envReady = true;
+    const pm = new THREE.PMREMGenerator(renderer), envScene = new RoomEnvironment();
+    scene.environment = pm.fromScene(envScene, 0.04).texture;
+    envScene.dispose?.(); pm.dispose();
+  };
+  scene.environmentIntensity = 0.25;
+  if (!lazyEnv) ensureEnv();
 
   const w = Math.round(W * ss), h = Math.round(H * ss);
+  const maxS = Math.max(1, renderer.capabilities.maxSamples || 1);
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType }));
   composer.setPixelRatio(1); composer.setSize(w, h);
-  const scenePass = new ScenePass(scene, camera, w, h, L2 ? Math.max(1, Math.min(L2.msaa, renderer.capabilities.maxSamples)) : 4); composer.addPass(scenePass);
-  const l2pass = L2 ? new Look2Pass(L2, scenePass, W, H, w, h) : null; if (l2pass) composer.addPass(l2pass);
+  const scenePass = new ScenePass(scene, camera, w, h, L2 ? Math.min(L2.msaa, maxS) : Math.min(4, maxS)); composer.addPass(scenePass);
+  const l2pass = L2 ? new Look2Pass(L2, scenePass, W, H, w, h, maxS) : null; if (l2pass) composer.addPass(l2pass);
   const dof = new ShaderPass(L2 ? DOF2(L2.dofTaps, L2.bokeh) : DOF); dof.uniforms.tDepth.value = scenePass.rt.depthTexture; dof.uniforms.res.value.set(w, h); composer.addPass(dof);
   const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.55, 0.7, 0.9);
   if (L2) { const sz = bloom.setSize.bind(bloom); bloom.setSize = (a, b) => sz(Math.round(a / ss), Math.round(b / ss)); bloom.radius = 0;   // look2: bloom at the old pixel scale whatever ss is; own mip weights
     bloom.compositeMaterial.uniforms.bloomFactors.value = [L2.bloomCore, 0.6, 0.42, L2.bloomWide, L2.bloomWide]; }
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
-  const grade = new ShaderPass(L2 ? GRADE2 : GRADE); composer.addPass(grade);
+  const grade = new ShaderPass(L2 ? GRADE2 : GRADE); if (!L2) grade.uniforms.res.value.set(W, H); composer.addPass(grade);
   let resolve = null;
   if (L2) { const gu = grade.uniforms; gu.tMask.value = l2pass.mask.rt.texture; for (const k of ['setLookK', 'castLookK', 'conMul', 'satMul', 'setGain', 'setSat', 'setCon', 'castLift', 'castGain', 'castKnee', 'castTop']) gu[k].value = L2[k]; bloomCastCut(bloom, l2pass.mask.rt.texture, L2);
     resolve = new ShaderPass(RESOLVE); const ru = resolve.uniforms; ru.tMask.value = l2pass.mask.rt.texture; ru.inRes.value.set(w, h); ru.outRes.value.set(W, H); ru.ss.value = ss; ru.sharp.value = L2.sharp; ru.sharpSet.value = L2.sharpSet; ru.grain.value = L2.grain; composer.addPass(resolve); }
-  // look2: every shadow light gets a big map and the PCF radius, every texture full anisotropic filtering (checked each frame: sets and props may add things late)
-  const aniso = renderer.capabilities.getMaxAnisotropy(), prep2 = () => scene.traverse((o) => {
+  // look2: every shadow light gets a big map and the PCF radius, every texture full anisotropic filtering (memoised per light/material so scene isn't redundantly re-processed)
+  const aniso = renderer.capabilities.getMaxAnisotropy(), prepped = new WeakSet(), prep2 = () => scene.traverse((o) => {
     if (o.isLight && o.castShadow && o.shadow && !o.isPointLight) { if (o.shadow.mapSize.x !== L2.shSize || o.shadow.radius !== L2.shRad) { o.shadow.mapSize.set(L2.shSize, L2.shSize); o.shadow.radius = L2.shRad; if (o.shadow.map) { o.shadow.map.dispose(); o.shadow.map = null; } } }
-    else if (o.isMesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { if (!m) continue; for (const k of ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'aoMap']) { const tx = m[k]; if (tx && tx.image && tx.anisotropy < aniso) { tx.anisotropy = aniso; tx.needsUpdate = true; } } } });
+    else if (o.isMesh && !prepped.has(o)) { prepped.add(o); for (const m of Array.isArray(o.material) ? o.material : [o.material]) { if (!m) continue; for (const k of ['map', 'emissiveMap', 'normalMap', 'roughnessMap', 'aoMap']) { const tx = m[k]; if (tx && tx.image && tx.anisotropy < aniso) { tx.anisotropy = aniso; tx.needsUpdate = true; } } } } });
 
   // (21/11 evening, order dependence) three computes a geometry's bounding sphere ONCE, from the vertices it has the first time it is drawn, and sorts by it (objects
   // sharing a material; every transparent object) and culls with it. A geometry rewritten every frame (the green paint trail, waves, wires, particles) kept the bounds
@@ -143,6 +152,7 @@ export function createStage({ W = 1080, H = 1920, ss = 1, tone = 'agx', exposure
     setBackdrop(on) { if (on === (scene.background === null)) return; if (on) { stage._bg = scene.background; scene.background = null; renderer.setClearColor(0x000000, 0); grade.uniforms.premul.value = 1; } else { scene.background = stage._bg; renderer.setClearColor(0x000000, 1); grade.uniforms.premul.value = 0; } },
     // focus distance in metres, aperture = blur strength (0 = everything sharp)
     render(t, { focus = 3, aperture = 0, maxBlur = 22 } = {}) {
+      ensureEnv();
       camera.updateMatrixWorld(); camera.updateProjectionMatrix();
       dof.uniforms.near.value = camera.near; dof.uniforms.far.value = camera.far; dof.uniforms.focus.value = focus; dof.uniforms.aperture.value = aperture * ss; dof.uniforms.maxBlur.value = maxBlur * ss;
       grade.uniforms.time.value = t;
