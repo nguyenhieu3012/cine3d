@@ -5,11 +5,13 @@ import { createPlayer } from './core/player.js';
 import { PACKS } from './packs/index.js';
 import { inkOutline } from './core/rig.js';
 import { ONLY } from './core/overlay.js';
+import { preloadMedia } from './core/media.js';
 
 const q = new URLSearchParams(location.search), film = document.getElementById('film'), ctx = film.getContext('2d', { alpha: false });
 await Promise.all(['800 40px Display', '900 40px Display', '600 40px UI', '800 40px UI'].map((f) => document.fonts.load(f, 'ẤƯỮđĐộệ RONALDO')));
 const ep = (await import('./' + (q.get('ep') || 'demo/trada_look.js'))).default;
 if (ep.lipsFile) ep.lips = await fetch(ep.lipsFile).then((r) => r.json()).catch(() => null);
+await preloadMedia(ep);
 // 16:9 support (23/11): opt-in via ep.aspect = '16:9', ep.size = [W, H], or ?aspect=16:9. Default 1080 x 1920 untouched.
 const [W, H] = ep.size || ((q.get('aspect') || ep.aspect) === '16:9' ? [1920, 1080] : [1080, 1920]);
 film.width = W; film.height = H;
@@ -35,10 +37,10 @@ for (const [n, c] of Object.entries(cast)) { if (ep.poses?.[n]) c.poses = { ...c
 if (ep.props) ep._props = ep.props({ scene: stage.scene, set, cast, stage }) || null;
 // look2 round 2: the set's light profile (packs/<pack>/look2_sets.js) + the cast's own lights and material response (core/look2.js); nothing without look2
 if (stage.look2) { const m = await import('./packs/' + ep.pack + '/look2_sets.js').catch(() => null); stage.setLook2Scene({ set, lights, setName, profiles: m?.L2SETS || {} }); }
-// facePlus (opt-in live facial acting + phoneme visemes: ep.facePlus = true or ?faceplus=1; off = untouched)
+// facePlus (opt-in live facial acting + phoneme visemes for both trada & goat: ep.facePlus = true or ?faceplus=1; off = untouched)
 const fpQ = q.get('faceplus') ?? q.get('facePlus'), wantFP = fpQ != null ? fpQ !== '0' : !!(ep.facePlus || ep.faceplus);
 let facePlus = null;
-if (wantFP && ep.pack === 'trada') { const fpMod = await import('./packs/trada/faceplus.js').catch(() => null); if (fpMod?.makeFacePlus) { facePlus = fpMod.makeFacePlus(ep, cast, ep.visemes || {}); facePlus.on = true; } }
+if (wantFP && (ep.pack === 'trada' || ep.pack === 'goat')) { const fpMod = await import('./packs/' + ep.pack + '/faceplus.js').catch(() => null); if (fpMod?.makeFacePlus) { facePlus = fpMod.makeFacePlus(ep, cast, ep.visemes || {}); facePlus.on = true; } }
 const player = createPlayer(stage, set, cast, ep, { facePlus });
 window.stage = stage; window.player = player; window.ep = ep; window.cast = cast; window.set = set; window.facePlus = facePlus;
 window.seek = (t, o) => player.frame(ctx, t, o);

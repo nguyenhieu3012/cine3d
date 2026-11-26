@@ -517,7 +517,31 @@ async def stage_build_and_gate(ep_id, ch):
     treat_doc = read_text(treat_rel, 12000)
     beats_doc = read_text(beats_rel, 16000)
     times_doc = read_text(times_rel, 12000)
+    was_scaffolded = False
+    ep_abs = os.path.join(ROOT, ep_rel)
+    if not os.path.exists(ep_abs) and os.path.exists(os.path.join(ROOT, "tools", "scaffold_ep.py")):
+        sc_cmd = [sys.executable or "python3", "tools/scaffold_ep.py", beats_rel]
+        if args.get("layout"):
+            sc_cmd += ["--layout", str(args["layout"])]
+        if args.get("kind"):
+            sc_cmd += ["--kind", str(args["kind"])]
+        rc_sc, out_sc = sh(sc_cmd, timeout=30)
+        log(f"0-token scaffold_ep rc={rc_sc}: {out_sc.strip()}")
+        was_scaffolded = rc_sc == 0 and os.path.exists(ep_abs)
+
     existing_ep = read_text(ep_rel, 24000)
+
+    # Tiny catalog summary (~300 bytes) of prebuilt Gemini stickers & backdrops so Builder reuses them
+    asset_summary = "(none)"
+    cat_p = os.path.join(ROOT, "packs", "shared", "stickers", "catalog.json")
+    if os.path.exists(cat_p):
+        try:
+            cat = json.load(open(cat_p, encoding="utf-8"))
+            st_ids = ", ".join(sorted((cat.get("stickers") or {}).keys()))
+            bd_ids = ", ".join(sorted((cat.get("backdrops") or {}).keys()))
+            asset_summary = f"Stickers (`packs/shared/stickers/`): {st_ids}\nBackdrops (`packs/shared/backdrops/`): {bd_ids}"
+        except Exception:
+            pass
 
     standing = (
         f"You are the Gemini Studio 3D Builder for cine3d (`{ep_id}`, channel `{ch}`).\n"
@@ -525,9 +549,11 @@ async def stage_build_and_gate(ep_id, ch):
         "STRICT CONTEXT & SPEED RULES:\n"
         "- All core docs (ENGINE-CORE + channel spec) are ALREADY injected below — do NOT waste turns re-reading them or reading `ENGINE.md` (164 KB).\n"
         "- Only check `.agents/skills/gemini-studio/ENGINE-INDEX.md` if you need a rare set (GTA/Zombie/chest/setswap).\n"
-        "- Prefer `core/ep_kit.js` (`makeKit`, `v2Defaults`/`goatDefaults`, `v2Hook`) so shots tile cleanly with zero gaps.\n"
+        "- Prefer `core/ep_kit.js` (`makeKit`, `v2Defaults`/`goatDefaults`, `v2Hook`, `diagramRig`, `boardOverlay`, `goatStatCard`, `setswapBackdrop`) so shots tile cleanly with zero gaps.\n"
+        "- NEVER hand-code 300+ line Canvas 2D diagrams in `*_props.js` when declarative `boardOverlay({ layout: 'flow'|'compare'|'chart'|'corkboard'|'tactics' })` + prebuilt stickers can do it in ~30 lines!\n"
         "- NEVER run `voice.py record` or touch `.claude/`.\n"
         "- Fix ALL reported QA/clip errors together in ONE batched edit per round — never chase one error at a time.\n\n"
+        f"=== PREBUILT GEMINI VISUAL ASSETS ===\n{asset_summary}\n\n"
         f"=== ENGINE-CORE.md ===\n{core_doc}\n\n"
         f"=== CHANNEL SPEC ({ch}) ===\n{spec_doc}\n"
     )
@@ -539,11 +565,11 @@ async def stage_build_and_gate(ep_id, ch):
         f"=== {treat_rel} ===\n{treat_doc or '(none)'}\n\n"
         f"=== {beats_rel} ===\n{beats_doc}\n\n"
         f"=== {times_rel} ===\n{times_doc}\n"
-        + (f"\n=== EXISTING {ep_rel} ===\n{existing_ep}\n" if existing_ep else "")
+        + (f"\n=== EXISTING {ep_rel} {'(0-token scaffold — polish acting, visual gags & diagram details)' if was_scaffolded else ''} ===\n{existing_ep}\n" if existing_ep else "")
     )
     build_prompt = (
-        f"Write or update `{os.path.join(ROOT, ep_rel)}` (and `episodes/{ep_id}_props.js` ONLY if custom 3D props are needed) on REAL times in ONE pass.\n"
-        "All input files are pre-injected below — write the file directly without wasting tool calls re-reading them.\n"
+        f"{'Polish the 0-token scaffold in' if was_scaffolded else 'Write or update'} `{os.path.join(ROOT, ep_rel)}` (and `episodes/{ep_id}_props.js` ONLY if custom 3D props are needed) on REAL times in ONE pass.\n"
+        "All input files are pre-injected below — edit the file directly without wasting tool calls re-reading them.\n"
         "Do NOT run QA yourself — the workflow runs `tools/build_check.py` deterministically right after you finish.\n\n"
         + initial_context_block
     )
@@ -551,7 +577,7 @@ async def stage_build_and_gate(ep_id, ch):
     pic_ok = False
     last_check = ""
     rounds_used = 0
-    if existing_ep and args.get("skip_if_passing", True):
+    if existing_ep and not was_scaffolded and args.get("skip_if_passing", True):
         rc_pre, out_pre = sh([sys.executable or "python3", "tools/build_check.py", ep_rel], timeout=360)
         if rc_pre == 0:
             log(f"Existing {ep_rel} already passed build_check (0 builder tokens spent):\n{out_pre}")

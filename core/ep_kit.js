@@ -1,9 +1,10 @@
-// cine3d opt-in episode authoring helpers (Gemini Studio, 24/11/2026).
+// cine3d opt-in episode authoring helpers (Gemini Studio v3.0, 26/11/2026).
 // Pure ES module; zero side effects on existing episodes or core modules.
 // Usage:
 //   import T from './myep.times.js';
 //   import B from './myep.beats.json' with { type: 'json' };
-//   import { makeKit, v2Defaults, v2Hook, goatDefaults } from '../core/ep_kit.js';
+//   import { makeKit, v2Defaults, v2Hook, goatDefaults, diagramRig, boardOverlay, goatStatCard, setswapBackdrop } from '../core/ep_kit.js';
+import { makeBackdropSwap } from './overlay_board.js';
 
 export function makeKit(T, B) {
   if (!T || !T.lines) throw new Error('ep_kit.makeKit(T, B): T.lines is required');
@@ -93,6 +94,7 @@ export function v2Defaults(overrides = {}) {
     rules: 2,
     look2: true,
     act2: true,
+    facePlus: true,
     setOpts: { plus: true, menuBrand: true, ...(setOpts || {}) },
     captions: { y: 1385, ...(captions || {}) },
     partners: { teo: 'bip', bip: 'teo', ...(partners || {}) },
@@ -106,10 +108,49 @@ export function goatDefaults(overrides = {}) {
     pack: 'goat',
     set: 'bar',
     fps: 30,
+    look2: true,
+    act2: true,
+    facePlus: true,
     setOpts: { steady: true, ...(setOpts || {}) },
     castOpts: { leo: { cup: 'mate' }, ...(castOpts || {}) },
     captions: { y: 1421, accent: '#ffe45a', ...(captions || {}) },
     partners: { ron: 'leo', leo: 'ron', ...(partners || {}) },
     ...rest,
   };
+}
+
+// Lower-half camera framing preset for 9:16 2-D diagram episodes (keeps cast heads cleanly
+// below top board y=216..756 and mouths comfortably above caption band y=1260).
+export function diagramRig(overrides = {}) {
+  return {
+    two: { eye: 0.565, head: 0.155, ...(overrides.two || {}) },
+    ms: { eye: 0.54, head: 0.165, ...(overrides.ms || {}) },
+    cu: { eye: 0.54, head: 0.205, ...(overrides.cu || {}) },
+  };
+}
+
+// Declarative 2-D board overlay helper (Vox 12fps stutter + cutout stickers + 5 layouts:
+// 'flow' | 'compare' | 'chart' | 'corkboard' | 'tactics').
+export function boardOverlay(spec = {}) {
+  return {
+    kind: 'board',
+    stutter: 12,
+    cutout: true,
+    thoughtDots: true,
+    ...spec,
+  };
+}
+
+// Broadcast ESPN/StatMuse stat card overlay helper (GOAT Beef & Trà Đá data callouts).
+export function goatStatCard(spec = {}) {
+  return {
+    kind: 'statCard',
+    stutter: 12,
+    ...spec,
+  };
+}
+
+// Stylized 2-D Gemini illustrated backdrop behind live 3-D cast (via core/player.js 'setswap').
+export function setswapBackdrop(spec = {}) {
+  return makeBackdropSwap(spec);
 }

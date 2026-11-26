@@ -3,8 +3,10 @@
 Modes:
   python3 tools/build_check.py episodes/<id>.js [--rules 1|2] [--beats path] [--skip-lips] [--skip-clip]
       Auto-cuts lips if voice stems exist & stale, runs qa.cjs + clipcheck.cjs, prints <= 25-line report.
-  python3 tools/build_check.py episodes/<id>.js --final [--audio-file path] [--fps 30] [--crf 17] [--proxy-fps 24] [--cover-t T --cover-top "..." --cover-plate "..."] [--force-render]
-      Checks picture -> renders clean 30fps CRF17 MP4 -> smooth.py -> review_proxy.mp4 (540p, 24fps, ~2-4MB) -> optional cover.
+  python3 tools/build_check.py episodes/<id>.js --draft [--audio-file path] [--chunks auto|1|N]
+      Fast layout/diagram preview (12fps, ss=0.35, l2_dofTaps=12, 540p) -> out/<id>/draft_preview.mp4 (<2 min).
+  python3 tools/build_check.py episodes/<id>.js --final [--audio-file path] [--fps 30] [--crf 17] [--chunks auto|1|N] [--proxy-fps 24] [--cover-t T --cover-top "..." --cover-plate "..."] [--force-render]
+      Checks picture -> renders clean 30fps CRF17 MP4 (auto-chunked for >13.5s) -> smooth.py -> review_proxy.mp4 (540p, 24fps, ~2-4MB) -> optional cover.
   python3 tools/build_check.py episodes/<id>.js --proxy-only [--mp4 path] [--audio-file path] [--proxy-fps 24]
       Makes out/<id>/review_proxy.mp4 directly (fast transcode if final MP4 is fresh, else fast preview render).
   python3 tools/build_check.py episodes/<id>.beats.json --audio [--rules 1|2] [--skip-build]
@@ -17,8 +19,10 @@ from concurrent.futures import ThreadPoolExecutor
 import glob
 import hashlib
 import json
+import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -506,6 +510,143 @@ def mode_proxy_only(a):
     sys.exit(0)
 
 
+def probe_ep_dur(ep_path, ep_id):
+    """Read episode duration from `<id>.times.js` or inline `dur:` in `<id>.js` without launching Chromium."""
+    times_p = os.path.join(os.path.dirname(os.path.abspath(ep_path)), f'{ep_id}.times.js')
+    if os.path.exists(times_p):
+        try:
+            txt = open(times_p, encoding='utf-8').read()
+            m = re.search(r'"dur"\s*:\s*([0-9]+(?:\.[0-9]+)?)', txt)
+            if m:
+                return float(m.group(1))
+        except Exception:
+            pass
+    try:
+        txt = open(ep_path, encoding='utf-8').read()
+        m = re.search(r'\bdur\s*:\s*([0-9]+(?:\.[0-9]+)?)', txt)
+        if m:
+            return float(m.group(1))
+    except Exception:
+        pass
+    return None
+
+
+def render_mp4_smart(ep_path, out_mp4, ep_id, fps=30, crf=17, preset='slow', audio=None, q=None, workers=None, chunks='auto', chunk_sec=11.5):
+    """Render MP4 via tools/render.cjs, automatically splitting long episodes (> chunk_sec + 2s)
+    into frame-accurate chunks to avoid Chromium GPU/WebGL memory drift, then lossless-concat + mux."""
+    dur = probe_ep_dur(ep_path, ep_id)
+    n_chunks = 1
+    c_str = str(chunks or 'auto').strip().lower()
+    if c_str in ('1', 'off', 'none', '0'):
+        n_chunks = 1
+    elif c_str == 'auto':
+        if dur and dur > (chunk_sec + 2.0):
+            n_chunks = max(2, math.ceil(dur / chunk_sec))
+    else:
+        try:
+            n_chunks = max(1, int(c_str))
+        except ValueError:
+            n_chunks = 1
+
+    extra = []
+    if preset:
+        extra += ['--preset', str(preset)]
+    if q:
+        extra += ['--q', str(q)]
+    if workers:
+        extra += ['--workers', str(workers)]
+
+    if n_chunks <= 1 or not dur:
+        cmd = ['node', 'tools/render.cjs', 'mp4', rel(ep_path), rel(out_mp4), '--fps', str(fps), '--crf', str(crf)] + extra
+        if audio:
+            cmd += ['--audio', rel(audio)]
+        rc, out, dt = run_cmd(cmd, timeout=900)
+        return rc, out, dt, 1
+
+    t_start = time.time()
+    out_dir = os.path.dirname(os.path.abspath(out_mp4))
+    chunk_dir = os.path.join(out_dir, '_chunks')
+    shutil.rmtree(chunk_dir, ignore_errors=True)
+    os.makedirs(chunk_dir, exist_ok=True)
+
+    f_total = max(1, round(dur * fps))
+    chunk_files = []
+    logs = []
+    try:
+        for i in range(n_chunks):
+            f0 = round(i * f_total / n_chunks)
+            f1 = round((i + 1) * f_total / n_chunks)
+            if f1 <= f0:
+                continue
+            cf = os.path.join(chunk_dir, f'c{i:02d}.mp4')
+            cmd = [
+                'node', 'tools/render.cjs', 'mp4', rel(ep_path), rel(cf),
+                '--from', f'{f0 / fps:.6f}', '--to', f'{f1 / fps:.6f}',
+                '--fps', str(fps), '--crf', str(crf),
+            ] + extra
+            rc, out, dt = run_cmd(cmd, timeout=600)
+            logs.append(f'chunk {i + 1}/{n_chunks}: rc={rc} ({dt}s)')
+            if rc != 0 or not os.path.exists(cf):
+                return rc or 1, out, round(time.time() - t_start, 1), n_chunks
+            chunk_files.append(cf)
+
+        concat_txt = os.path.join(chunk_dir, 'concat.txt')
+        with open(concat_txt, 'w', encoding='utf-8') as f:
+            for cf in chunk_files:
+                f.write(f"file '{os.path.basename(cf)}'\n")
+
+        mux = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', concat_txt]
+        if audio:
+            mux += ['-i', audio, '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-shortest']
+        else:
+            mux += ['-c:v', 'copy', '-an']
+        mux += ['-movflags', '+faststart', out_mp4]
+        rc_m, out_m, _ = run_cmd(mux, timeout=180)
+        if rc_m != 0:
+            return rc_m, out_m, round(time.time() - t_start, 1), n_chunks
+        return 0, '\n'.join(logs), round(time.time() - t_start, 1), len(chunk_files)
+    finally:
+        shutil.rmtree(chunk_dir, ignore_errors=True)
+
+
+def mode_draft(a):
+    """Fast 12fps layout/diagram preview -> out/<id>/draft_preview.mp4 (<2 min on CPU)."""
+    ep_path = os.path.abspath(a.target)
+    if not os.path.exists(ep_path):
+        print(f'DRAFT FAIL  missing {a.target}'); sys.exit(2)
+    ep_id = ep_id_of(ep_path)
+    out_dir = os.path.join(ROOT, 'out', ep_id)
+    os.makedirs(out_dir, exist_ok=True)
+    raw_mp4 = os.path.join(out_dir, '_draft_raw.mp4')
+    draft = os.path.join(out_dir, 'draft_preview.mp4')
+    audio = os.path.abspath(a.audio) if a.audio else os.path.join(out_dir, 'audio', 'mix.wav')
+    use_audio = audio if os.path.exists(audio) else None
+    draft_q = a.q or 'ss=0.35&l2_dofTaps=12'
+    draft_fps = a.fps if a.fps != 30 else 12
+
+    rc_r, out_r, dt_r, n_ch = render_mp4_smart(
+        ep_path, raw_mp4, ep_id,
+        fps=draft_fps, crf=24, preset='veryfast', audio=use_audio,
+        q=draft_q, workers=a.workers, chunks=a.chunks, chunk_sec=max(18.0, a.chunk_sec),
+    )
+    if rc_r != 0 or not os.path.exists(raw_mp4):
+        print(f'DRAFT FAIL  render rc={rc_r} ({dt_r}s): {first_err_line(out_r)}')
+        sys.exit(1)
+    rc_p, out_p, dt_p = make_proxy(raw_mp4, draft, proxy_fps=draft_fps, proxy_crf=26)
+    try:
+        os.remove(raw_mp4)
+    except OSError:
+        pass
+    if rc_p != 0 or not os.path.exists(draft):
+        print(f'DRAFT FAIL  proxy scale rc={rc_p}: {first_err_line(out_p)}')
+        sys.exit(1)
+    di = probe_media(draft) or {}
+    ch_note = f', {n_ch} chunks' if n_ch > 1 else ''
+    print(f"DRAFT PASS  {rel(draft)}  ({di.get('w')}x{di.get('h')}, {di.get('fps')}fps, {di.get('dur_s')}s, {di.get('size_mb')} MB, audio={di.get('audio')}{ch_note}, {round(dt_r + dt_p, 1)}s)")
+    print(f'  [NEXT]    read_file("{os.path.abspath(draft)}") to verify layout/diagram timing before --final')
+    sys.exit(0)
+
+
 def mode_final(a):
     ep_path = os.path.abspath(a.target)
     ep_id = ep_id_of(ep_path)
@@ -544,9 +685,10 @@ def mode_final(a):
         print(f'FINAL FAIL  missing audio mix {rel(audio)} for {rel(ep_path)} (run `--audio` first, or pass `--allow-silent` for silent preview)')
         sys.exit(1)
 
-    rc_r, out_r, dt_r = run_cmd(
-        ['node', 'tools/render.cjs', 'mp4', rel(ep_path), rel(mp4), '--fps', str(a.fps), '--crf', str(a.crf)] + (['--audio', rel(use_audio)] if use_audio else []),
-        timeout=900,
+    rc_r, out_r, dt_r, n_ch = render_mp4_smart(
+        ep_path, mp4, ep_id,
+        fps=a.fps, crf=a.crf, preset=a.preset, audio=use_audio,
+        q=a.q, workers=a.workers, chunks=a.chunks, chunk_sec=a.chunk_sec,
     )
     if rc_r != 0 or not os.path.exists(mp4):
         print(f'FINAL FAIL  render.cjs rc={rc_r} ({dt_r}s): {first_err_line(out_r)}')
@@ -591,15 +733,16 @@ def mode_final(a):
     all_ok = pic['pass'] and smooth_ok and proxy_ok and cover_ok and not spec_fails
     final_report = {
         'id': ep_id, 'pass': all_ok, 'picture': pic,
-        'render_s': dt_r, 'smooth_ok': smooth_ok, 'smooth_line': smooth_line,
+        'render_s': dt_r, 'chunks': n_ch, 'smooth_ok': smooth_ok, 'smooth_line': smooth_line,
         'spec_fails': spec_fails, 'final_mp4': fi, 'review_proxy': pi, 'cover': cover_msg, 'cover_ok': cover_ok,
     }
     json.dump(final_report, open(os.path.join(out_dir, 'build_check.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 
+    ch_sfx = f', {n_ch} chunks' if n_ch > 1 else ''
     lines = [
         f"FINAL {'PASS' if all_ok else 'FAIL'}  {rel(ep_path)}  (rules {rules})",
         f"  [QA/CLIP] {'PASS' if pic['pass'] else 'FAIL'} (qa_fail={pic['qa_fail_count']}, clip_fail={pic['clip_fail_count']}, warns={pic['qa_warns']}" + (", reused" if reused_pic else "") + ")",
-        f"  [RENDER]  {fi.get('path')}  {fi.get('w')}x{fi.get('h')} {fi.get('fps')}fps {fi.get('dur_s')}s {fi.get('size_mb')} MB {fi.get('kbps')} kbps audio={fi.get('audio')} ({dt_r}s)",
+        f"  [RENDER]  {fi.get('path')}  {fi.get('w')}x{fi.get('h')} {fi.get('fps')}fps {fi.get('dur_s')}s {fi.get('size_mb')} MB {fi.get('kbps')} kbps audio={fi.get('audio')} ({dt_r}s{ch_sfx})",
         f"  [SMOOTH]  {smooth_line[:135]} ({dt_s}s)",
         f"  [PROXY]   {pi.get('path')}  {pi.get('w')}x{pi.get('h')} {pi.get('fps')}fps {pi.get('size_mb')} MB audio={pi.get('audio')} ({dt_p}s)" if proxy_ok else f"  [PROXY]   FAIL rc={rc_p}: {out_p.strip()[-100:]}",
     ]
@@ -628,16 +771,22 @@ def main():
     P.add_argument('--audio', action='store_true', dest='audio_mode', help='audio check mode (target is .beats.json)')
     P.add_argument('--skip-build', action='store_true', help='with --audio: skip voice.py build')
     P.add_argument('--strict-sfx', action='store_true', help='with --audio: fail if any SFX falls back to synth')
+    P.add_argument('--draft', action='store_true', help='fast 12fps 540p layout/diagram preview -> out/<id>/draft_preview.mp4')
     P.add_argument('--final', action='store_true', help='run checks + 30fps CRF17 render + smooth + review_proxy.mp4')
     P.add_argument('--reuse-check', action='store_true', help='with --final: reuse passing build_check.json when SHA-256 of inputs matches')
     P.add_argument('--force-render', action='store_true', help='with --final: render even if QA/clip fails')
     P.add_argument('--allow-silent', action='store_true', help='with --final: allow rendering without mix.wav (auto-on for demo/)')
     P.add_argument('--proxy-only', action='store_true', help='create out/<id>/review_proxy.mp4 only')
     P.add_argument('--spot', default=None, help='comma-separated timestamps for targeted 1080p stills')
-    P.add_argument('--audio-file', dest='audio', default=None, help='override mix.wav path for --final / --proxy-only')
+    P.add_argument('--audio-file', dest='audio', default=None, help='override mix.wav path for --final / --draft / --proxy-only')
     P.add_argument('--mp4', default=None, help='existing mp4 path for --proxy-only')
     P.add_argument('--fps', type=int, default=30)
     P.add_argument('--crf', type=int, default=17)
+    P.add_argument('--preset', default='slow', help='x264 preset for --final (default: slow)')
+    P.add_argument('--q', default=None, help='extra render.cjs query flags (e.g. ss=0.35&l2_dofTaps=12)')
+    P.add_argument('--workers', type=int, default=None, help='override render.cjs parallel page workers')
+    P.add_argument('--chunks', default='auto', help='auto (split >chunk-sec), 1 (single pass), or integer N')
+    P.add_argument('--chunk-sec', type=float, default=11.5, help='target seconds per chunk when --chunks auto (default: 11.5)')
     P.add_argument('--proxy-fps', type=int, default=24)
     P.add_argument('--cover-t', type=float, default=None)
     P.add_argument('--cover-top', default=None)
@@ -650,6 +799,8 @@ def main():
         mode_spot(a)
     elif a.proxy_only:
         mode_proxy_only(a)
+    elif a.draft:
+        mode_draft(a)
     elif a.final:
         mode_final(a)
     else:

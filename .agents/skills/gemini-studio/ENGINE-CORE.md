@@ -29,9 +29,10 @@ export default {
   overlays: [ v2Hook('HACK NICK, VAY 5 TRIỆU') ],
 };
 ```
-- **Defaults:** `v2Defaults()` sets `pack:'trada', set:'stall', fps:30, rules:2, look2:true, act2:true, setOpts:{ plus:true, menuBrand:true }, captions:{ y:1385 }, partners:{ teo:'bip', bip:'teo' }`. Add `setOpts: { mailbox: true }` whenever Hòm Thư appears.
-- **GOAT defaults:** `goatDefaults()` sets `pack:'goat', set:'bar', fps:30, setOpts:{ steady:true }, castOpts:{ leo:{ cup:'mate' } }, captions:{ y:1421, accent:'#ffe45a' }, partners:{ ron:'leo', leo:'ron' }`.
-- **16:9 Sunday compilation:** `aspect: '16:9'` (or `size: [1920, 1080]`); all `overlay_v2` widgets & captions adapt automatically.
+- **Defaults:** `v2Defaults()` sets `pack:'trada', set:'stall', fps:30, rules:2, look2:true, act2:true, facePlus:true, setOpts:{ plus:true, menuBrand:true }, captions:{ y:1385 }, partners:{ teo:'bip', bip:'teo' }`. Add `setOpts: { mailbox: true }` whenever Hòm Thư appears.
+- **GOAT defaults:** `goatDefaults()` sets `pack:'goat', set:'bar', fps:30, look2:true, act2:true, facePlus:true, setOpts:{ steady:true }, castOpts:{ leo:{ cup:'mate' } }, captions:{ y:1421, accent:'#ffe45a' }, partners:{ ron:'leo', leo:'ron' }`.
+- **0-token Scaffolder:** `python3 tools/scaffold_ep.py episodes/<id>.beats.json [--layout standard|flow|compare|chart|corkboard|tactics] [--kind standard|quickie|fullbeef]` writes a QA-ready `episodes/<id>.js` before `flash` polishes acting & gags.
+- **16:9 Sunday compilation:** `aspect: '16:9'` (or `size: [1920, 1080]`); all `overlay_v2` & `overlay_board` widgets & captions adapt automatically.
 
 ## 2. Shots & Camera (`core/camera.js`)
 Tokens: `wide` (27mm) · `all` (35mm, ≥3 cast) · `two` (42mm, both) · `ms_<who>` (58mm, default talk) · `cu_<who>` (85mm, punchline/react) · `ecu_<who>` (105mm, 1 climax beat) · `ots_<who>` (58mm over partner's shoulder).
@@ -41,7 +42,7 @@ Tokens: `wide` (27mm) · `all` (35mm, ≥3 cast) · `two` (42mm, both) · `ms_<w
   - `punchAt: t | [t1, t2]` (8% push on stressed word) · `whip: 0.14` (whip pan in) · `rack: { from, to, t0, t1 }`
   - `eyes: { teo: 'cam' }` · `dof` (0 = all sharp) · `focusOn: 'bip'` · `shake` · `dutch` (deg) · `v: 1` (mirrored `two`/`wide`)
   - `hold: true` (deliberate shot > 3 s) · `action: true` (prop/move beat, must last ≥ 1.2 s) · `insert: true` (prop close-up)
-  - `rig: { f, head, az, el, eye }` (override framing; **QA eye_line requires eyes at 28–44% from top**: default tokens are already safe — NEVER set `rig.eye > 0.41`, and on `_lo` low-angle shots like `cu_teo_lo` keep `rig.eye <= 0.34` or omit `rig`!)
+  - `rig: { f, head, az, el, eye }` (override framing; **QA eye_line requires eyes at 28–44% from top** on standard shots — default tokens are already safe. For 2D diagram episodes, use `const RIG = diagramRig()` from `core/ep_kit.js` so cast heads sit cleanly below the top board `y: 216..756` and mouths stay above captions!)
   - `free: { from: [x,y,z], at: [x,y,z], f, dof }` (custom camera; QA still checks framing & exposure!)
   - **First-3s & rhythm rule (Round-1 PASS):** ALWAYS place **≥ 3 distinct resolved camera framings in `0..3.0 s`** (e.g., `0.0–1.0 cu_teo`, `1.0–2.0 ms_bip`, `2.0–3.2 two`) and aim for **6 shots (~2.0 s avg)** in `0..12 s` (never 7 shots = 1.71 s avg, which fails `shot_rhythm`!). Keep top overlays compact (`y: 260..345`) so they never cover > 15% of a subject's head.
   - Multi-cast: `frame: ['teo', 'bip', 'ba']` on `two`/`wide`/`all`; `partner: 'ba'` on singles.
@@ -55,16 +56,35 @@ Every spoken line MUST have an `emo` matching its beat's `mood` (`qa.cjs` checks
   - `TEO_POSE`: `rest, table, point, pointL, me, raise, cheer, facepalm, chin, shrug, cross, hug, phone, cup, head, beg, zen, give, push, pushA, pushB, grip, cover, pinch, gag, stop, reach, sleep, side, fists, shoo, pushGlasses, guard, phoneHold, phoneNear, phoneSlap, swipeIdle, scroll, phoneEar, slipHold, brush, flail, hips, ticket, sign, bag, drive, gloat, keypad`
   - `BIP_POSE`: `rest, table, point, pointL, me, raise, cheer, facepalm, chin, shrug, hug, cross, phone, cup, head, beg, side, poke, shoo, waveUp, clasp, finger, tap, block, hugB, phoneUp, plug, hand, handL, wipe, wipeR, printing, rigid`
   - `people.js` extras (`ba`, `me`, `khach`): Tèo's faces + poses `hips, wave, give, scold`.
-- **GOAT Beef (`packs/goat/fans.js`):**
+- **GOAT Beef (`packs/goat/fans.js`, `faceplus.js`):**
   - `RON_FACE` / `LEO_FACE`: `neutral, happy, smug, shock, worry, sad, cry, angry, think, deadpan, laugh, sarcastic, horror, unimpressed`
   - `FAN_POSE`: `rest, table, point, pointL, me, raise, cheer, facepalm, chin, shrug, cross, phone, cup, head, beg, siu, clap, siuJ`
+  - `facePlus: true` (enabled by default in `goatDefaults()`) adds live English phoneme→viseme (`A`–`G`), blinks, saccades, gaze-leads-head, and stressed-word brow pops!
 - **Acts (`ep.acts`):** `{ t, who, emo?, pose?, look?: 'cam'|'partner'|'<who>'|'down'|'up'|'away', d?, nod?: 'yes'|'no'|'jolt', fx?: { ... } }`
   - `who: 'set'` drives stall/bar fx: `phoneUp: 0|1`, `dim: 0..1`, `spill`, `cold`, `blackout`, `steadyLights` levels.
   - Line flags: `noCap: true` (suppress subtitle when big phone card is up), `think: true` (thought/inner voice).
 
-## 4. Overlays (`core/overlay_v2.js` + `core/overlay.js`)
-**Safe zones (9:16 v2):** keep widgets centered around `x: 472` (`x 54..890`, strictly clear of right platform UI `x > 900`), `y 224..1220` (above captions at `y: 1385`, clear of bottom UI `y > 1536`). Captions in `rules: 2` stay centered at `x: 540` with auto-capped `maxW: 710` (`x 185..895 < 900`; override via `captions: { x, maxW }` if needed).
-- **Blueprint v2 Floating Widgets (`core/overlay_v2.js` — `backdrop: false` by default, zero blur over cast):**
+## 4. Overlays (`core/overlay_board.js` + `core/overlay_v2.js` + `core/overlay.js`)
+**Safe zones (9:16 v2):** keep widgets centered around `x: 472` (`x 54..890`, strictly clear of right platform UI `x > 900`), `y 220..1220` (above captions at `y: 1385`, clear of bottom UI `y > 1536`). Captions in `rules: 2` stay centered at `x: 540` with auto-capped `maxW: 710` (`x 185..895 < 900`; override via `captions: { x, maxW }` if needed).
+
+### 4A. v3.0 Visual Explainer & 2D Presentation Engine (`core/overlay_board.js` + `core/media.js`)
+**NEVER write 300+ lines of raw Canvas 2D in `*_props.js` for diagrams!** Use declarative v3.0 overlays (auto-preloaded by `core/media.js`, auto-read-checked by `tools/qa.cjs`, Vox `12fps` stutter + white paper-cutout sticker rim + highlighter sweep built-in):
+- **`boardOverlay(spec)` (`kind: 'board'`):** Floats at `y: 216..756` (pair with `rig: diagramRig()` on cast shots + `look: 'up'` glance acts). 5 built-in layouts:
+  - `layout: 'flow'` — 2–4 step process / money-loop (`steps: [{ t, caption, sub?, sticker?, highlight?, stamp?: { at, text, sub? } }]`, `loop?: { at, label }`).
+  - `layout: 'compare'` — 2-side battle/myth-vs-reality (`stack: true` for vertical-first 9:16 stacking, `left`/`right: { label, color, sticker?, rows: [{ t, text }] }`, `verdict?: { at, text }`).
+  - `layout: 'chart'` — Animated horizontal bar/waterfall chart (`bars: [{ t, label, value, unit?, sticker?, highlight? }]`, `summary?: { t, text }`).
+  - `layout: 'corkboard'` — Detective evidence board with pushpins + animated red strings (`pins: [{ id, t, x, y, title, sticker?, highlight?, stamp? }]`, `links: [{ from, to, t, label? }]`, `magnify?: { targetId, at }`).
+  - `layout: 'tactics'` — Tifo Football tactical pitch (`players: [{ id, num, name, team:'A'|'B', x, y, t }]`, `passes: [{ from, to, t, curve?, ball?: true }]`, `zones: [{ x, y, r, t, label? }]`, `badge?: { t, text }`).
+- **`goatStatCard(spec)` (`kind: 'statCard'`):** ESPN/StatMuse broadcast card (`t0, t1, team:'ron'|'leo'|'gold', title, big | countTo, prefix?, suffix?, sub?, sticker?, highlightAt?`). Default `y: 330`.
+- **`sticker` (alias `image`):** Standalone Vox cutout sticker (`{ kind:'sticker', t0, t1, sticker:'sports_car', x, y, size:240, enter:'pop'|'slideL'|'slideR'|'drop', label?, stamp? }`).
+- **`highlighter`:** Vox text highlight callout (`{ kind:'highlighter', t0, t1, text, y:340, highlightAt?, color? }`).
+- **`setswapBackdrop(spec)`:** Stylized 2D Gemini painted backdrop behind live 3D cast (`setswapBackdrop({ t0, t1, backdrop:'mom_kitchen', fade:0.45, kenBurns:0.06 })`).
+- **Prebuilt Asset Catalog (`packs/shared/stickers/catalog.json`):**
+  - **10 Cutout Stickers:** `ballon_dor`, `guru_book`, `mom_box`, `money_bag`, `ref_card`, `scam_phone`, `sports_car`, `ucl_trophy`, `villa`, `world_cup`.
+  - **2 Painted Backdrops (1080×1920):** `mom_kitchen`, `stadium_night`.
+  - **Add new asset from `generate_image`:** `python3 tools/cutout_sticker.py raw.jpg packs/shared/stickers/<name>.png` (or `--backdrop` for backdrops; auto-updates `catalog.json`).
+
+### 4B. Blueprint v2 Floating Widgets (`core/overlay_v2.js` — `backdrop: false` by default)
   - `chatStrip`: `{ kind:'chatStrip', t0, t1, sender, sub?, avatar:'mum'|'gpt'|'bank'|'letter', accent, y:345, maxShow:2, msgs:[{ t, from:'them'|'me', text }] }` (**≤ 8 words/msg, STRICT `1.8–2.5 s` per message — NEVER keep a message card up > 2.5 s or `card_time` fails!**, 1 msg revealed at a time!)
   - `callCard`: `{ kind:'callCard', t0, t1, mode:'outgoing'|'busy'|'incoming'|'live', name, who?, busyAt?, busyText?:'Máy bận!', answer?, avatar:'mum', y:320 }` (`outgoing`/`busy` draw red hang-up button ONLY)
   - `voiceNote`: `{ kind:'voiceNote', t0, t1, sender, who, avatar:'mum', durLabel:'0:04', text?, y:345 }` (waveform auto-synced to `ep.lips`)
@@ -82,10 +102,13 @@ Every spoken line MUST have an `emo` matching its beat's `mood` (`qa.cjs` checks
 - **3D Text Props:** declare `ep.reads = [{ text:'...', t0, t1 }]` (or `prop:'<meshName>'`); must be unblocked ≥ 90% and held `>= 1.0 + chars/12` s.
 - **Waivers (`ep.waive`):** ONLY when genuinely intentional. Max span **≤ 25%** of duration, MUST include `reason`, MUST name object (`who`/`obj` or `"Object: ..."` in reason — except episode-level checks `tail/length/shot_rhythm/first_3s`). Never use blanket `check: 'clip'`.
 - **QA v2 Hard Numbers:**
-  - `dur`: 42–52 s (target 42–48 s) · `tail <= 0.85 s` (v1: `<= 2.05 s`)
+  - `dur`: 30–52 s (`comedy`), 42–62 s (`emotional`), 35–60 s (`wildcard`) · `tail <= 0.85 s` (`comedy`; `2.55 s` `emotional`; `1.55 s` `wildcard`; v1: `<= 2.05 s`)
   - First 12 s avg shot: `1.8–2.4 s`, no static shot `> 2.8 s`, no static `two` `> 2.5 s`
   - Speaker visible & facing camera (`<= 75°`), no `same_framing` back-to-back, no `long_shot > 3.0 s` without `hold: true`
-  - **One command checks everything:** `python3 tools/build_check.py episodes/<id>.js` (auto-lips + `qa.cjs` + `clipcheck.cjs`, ≤ 25 lines).
+  - **Build/Preview/Render CLIs:**
+    - `python3 tools/build_check.py episodes/<id>.js` (auto-lips + `qa.cjs` + `clipcheck.cjs`, ≤ 25 lines)
+    - `python3 tools/build_check.py episodes/<id>.js --draft` (fast 12fps 540p layout preview `draft_preview.mp4` < 2 min)
+    - `python3 tools/build_check.py episodes/<id>.js --final` (auto-chunked `--chunks auto` 30fps CRF17 + `smooth.py` + `review_proxy.mp4`)
 
 ## 6. Verified Real Audio Library (`audio_lib/catalog.json`, 48 kHz CC0)
 Use ONLY verified real IDs in `beats.json` so zero SFX fall back to numpy synth (`build_check.py --audio` flags any `SYNTH_FALLBACK`):

@@ -1,7 +1,7 @@
-# Spec Kênh: GOAT Beef (`goat`) — v2.1 (1 Nguồn Sự Thật)
+# Spec Kênh: GOAT Beef (`goat`) — v3.0 (1 Nguồn Sự Thật)
 
-> 100% English · Target audience: US viewers aged 16–30 · Always `rules: 1`, `fps: 30`, `set: 'bar'`, `look2: true, act2: true` (opt-in on new eps via `packs/goat/look2_sets.js`), `setOpts: { steady: true }`, `castOpts: { leo: { cup: 'mate' } }`, `captions: { y: 1421, accent: '#ffe45a' }`.
-> **MUST load with:** `.agents/skills/gemini-studio/WRITERS-ROOM.md` (3-Take Divergence, 6 Comedy Engines, US Pub Trash-Talk Kill List, dynamic `gap` & ElevenLabs `[tag]` delivery).
+> 100% English · Target audience: US viewers aged 16–30 · Always `rules: 1`, `fps: 30`, `set: 'bar'`, **`look2: true, act2: true, facePlus: true`** (auto-set by `goatDefaults()` in `core/ep_kit.js`, with live English phoneme visemes via `packs/goat/faceplus.js`), `setOpts: { steady: true }`, `castOpts: { leo: { cup: 'mate' } }`, `captions: { y: 1421, accent: '#ffe45a' }`.
+> **MUST load with:** `.agents/skills/gemini-studio/WRITERS-ROOM.md` (3-Take Divergence, 6 Comedy Engines, YouTube 2026 Visual Craft, US Pub Trash-Talk Kill List, dynamic `gap` & ElevenLabs `[tag]` delivery).
 
 ## 1. Cast, Dynamic & Steel-Man Rule
 - **Ron (left, looks right):** Loud, proud, whole-body gestures, stands/slams table when triggered, boasts goals, big-game aura & trophies.
@@ -9,13 +9,18 @@
 - **MANDATORY Steel-Man & Reversal Rule:** **NEVER write a 10–0 strawman blowout!** The losing side MUST land **≥ 1 genuinely undeniable point** that makes the winner sweat or pause. In **≥ 1 of 3 episodes**, reverse roles so **Leo cracks first** (drops the mate / gets visibly rattled) while Ron stays smug!
 - **US-First Voice Anchors:** Use **"soccer"** alongside **"football"** naturally; favor **MLS / Inter Miami / 2026 World Cup / US sports-bar cadence** over obscure European trivia. Never require watching last episode's bet.
 
-## 2. Unified Runtime & Non-Negotiable Script Rules
+## 2. Unified Runtime, v3.0 Broadcast Visuals & Non-Negotiable Script Rules
 - **Runtime (STRICT — no 60 s podcast bloat):**
-  - **Quickie (`kind: "quickie"`):** **15–22 s** (1 hot news item `< 48 h`, instant claim `< 2 s`, 1 razor twist, comment war).
+  - **Quickie Fast-Track (`kind: "quickie"`):** **15–22 s** (1 hot football/soccer news item `< 48 h`, instant claim `< 2 s`, 1 razor twist, comment war). Scaffold in 0 tokens via `python3 tools/scaffold_ep.py episodes/<id>.beats.json --kind quickie --layout compare|tactics`.
   - **Full Beef (`kind: "fullbeef"`):** **28–42 s** (hard ceiling `45 s`, speech share `60–75%`).
+- **v3.0 Broadcast & Tifo Visual Arsenal (`core/overlay_board.js` + `packs/shared/stickers/`):**
+  - **ESPN/StatMuse Stat Cards (`goatStatCard`):** Count-up stat reveals + cutout stickers (`world_cup`, `ballon_dor`, `ucl_trophy`, `ref_card`) — **ONLY after 15 s on Full Beef** (Quickies may show 1 crisp visual proof after 6 s).
+  - **Tifo Tactical Pitch (`boardOverlay({ layout: 'tactics' })`):** Numbered player tokens, animated curved dashed passing lanes + moving ball, heat zones — ideal for "who ghosted in big finals" or tactical receipts (`rig: diagramRig()`).
+  - **2-Side Battle (`boardOverlay({ layout: 'compare' })`):** Red (Ron) vs Blue (Leo) visual receipts with stamp verdict (`COOKED`, `FACT CHECK`).
+  - **Stadium Flash-Cut (`setswapBackdrop({ backdrop: 'stadium_night' })`):** Instant stadium floodlight cutaway behind Ron/Leo for big-match bragging beats!
 - **Standalone opening claim (< 2 s):** Viewers immediately know the argument without prior episodes.
 - **Strongest joke / hook < 3 s**, first genuine laugh **< 6 s**.
-- **Pure Banter + Physical Pub Comedy in `0–15 s`:** **ZERO stat-and-card rounds before 15 s** AND **≥ 2 physical pub gags** written in `"visual"` fields (pint slam, mate sip mid-rant, napkin math, bar stool turn, phone shove, crowd reaction).
+- **Pure Banter + Physical Pub Comedy in `0–15 s`:** **ZERO stat-and-card rounds before 15 s** (Full Beef) AND **≥ 2 physical pub gags** written in `"visual"` fields (pint slam, mate sip mid-rant, napkin math, bar stool turn, phone shove, crowd reaction).
 - **Numbers Discipline:** **≤ 1 number per spoken line**, **≤ 4 distinct numbers per episode** (never turn banter into a Wikipedia recital).
 - **Dynamic Rhythm & Voice Craft:** Vary `gap` (`0.05–0.10 s` interrupts, `0.18–0.24 s` ping-pong, `0.38–0.60 s` deadpan stares — NEVER flat `0.18` everywhere). Include ElevenLabs v4 `[tag]` in `"say"` on ≥ 40% of punchlines.
 - **Vary Endings & Comedy Engines:** Rotate the 6 Comedy Engines (`WRITERS-ROOM.md`). Never repeat `"Eight."` or the small moved beat back-to-back; `"Nobody asked!"` max **1 in 3 episodes**.

@@ -19,8 +19,9 @@
 ## 3. Ba Chế Độ Nhịp (`"mode"` trong header `beats.json`) & 5 Nhịp Vàng
 Chọn đúng chế độ cho từng câu chuyện (không ép 1 khuôn đồng hồ duy nhất):
 - **`"comedy"` (mặc định, 30–52 s, tối ưu 34–46 s):** Cười/khịa đầu `< 5,5 s`, cú lật `45–68%`, đuôi `≤ 0,8 s`, kết kép `4–5 s` (phễu/bar10k tùy chọn).
-- **`"emotional"` (42–62 s, chuẩn `mekhongcanve`):** Kể chuyện bằng hình ảnh (`35–60%` thoại), móc cảm xúc `< 7,5 s`, cho phép lắng tới `2,5 s` ở đuôi, **CẤM ép CTA/tông đơ/bar10k** — kết bằng 1 câu rất thật hoặc "Rò nước" thật nhẹ.
-- **`"wildcard"` (35–60 s, chuẩn `gta6p2`):** Parody/ý tưởng táo bạo, cú lật `35–75%`, đuôi `≤ 1,5 s`.
+- **`"emotional"` (42–62 s, chuẩn `mekhongcanve`):** Kể chuyện bằng hình ảnh (`35–60%` thoại), móc cảm xúc `< 7,5 s`, cho phép lắng tới `2,5 s` ở đuôi, **CẤM ép CTA/tông đơ/bar10k** — kết bằng 1 câu rất thật hoặc "Rò nước" thật nhẹ. Nên dùng `setswapBackdrop({ backdrop: 'mom_kitchen' })` cho đoạn hồi tưởng bếp Mẹ thay vì dựng set 3D mới tốn thời gian.
+- **`"wildcard"` (35–60 s, chuẩn `gta6p2` / `thaylamgiau`):** Parody/ý tưởng táo bạo hoặc **Explainer Hệ Thống** (`boardOverlay`), cú lật `35–75%`, đuôi `≤ 1,5 s`.
+- **Chế độ Trình Bày Sơ Đồ 2D (Imagine Diagram Explainer — v3.0):** Khi bóc phốt mô hình lừa đảo, dòng tiền, lương còm hay so sánh sự thật vs quảng cáo, dùng **`boardOverlay`** (`layout: 'flow' | 'corkboard' | 'chart' | 'compare'`) + sticker từ `packs/shared/stickers/catalog.json` + **`rig: diagramRig()`** (nhân vật 3D ngồi nửa dưới ngước `look: 'up'`, sơ đồ 2D stutter 12fps + highlighter + dây đỏ nổi nửa trên `y: 216..756`). Khởi tạo 0 token bằng `tools/scaffold_ep.py --layout flow|corkboard|chart|compare`.
 
 **Khung 5 Nhịp Vàng (áp dụng chặt cho `comedy`, linh hoạt theo nhịp thở ở `emotional`/`wildcard`):**
 - **4 dòng đầu kịch bản:** (1) Phản xạ Share Zalo/Messenger, (2) Đánh phủ đầu (`< 5,5 s`), (3) Mồi hài (≥ 1 Visual Gag + Comedy Engine đang dùng + running gag), (4) Gieo & gặt.

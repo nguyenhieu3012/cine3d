@@ -5,6 +5,7 @@ import { clamp, easeOut, lerp, overshoot } from './util.js';
 import { project } from './camera.js';
 import { ZB, gptMark, msgcard } from './overlay_zb.js';
 import { V2_OVERLAYS } from './overlay_v2.js';
+import { BOARD_OVERLAYS } from './overlay_board.js';
 
 // Overlay-only export (tools/render.cjs pngseq --overlays-only): the layer is drawn on a transparent canvas with NO 3-D picture under it. Overlays that need to SAMPLE the picture
 // (backdrop blur + dim, the freeze_rewind / cold grades) cannot run; they write what they would have done into ONLY.flags and draw nothing of the sampled part.
@@ -259,7 +260,7 @@ export function chest(ctx, o, t, ep, cast, camera) {
   ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(0, 0, r - 4, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke();
   ctx.restore();
 }
-const OVERLAY_HANDLERS = { hook, chip, bubble, end: endCard, score, backdrop, draw, phone, thought, call, notify, unlock, pill, chest, ...ZB, ...V2_OVERLAYS };
+const OVERLAY_HANDLERS = { hook, chip, bubble, end: endCard, score, backdrop, draw, phone, thought, call, notify, unlock, pill, chest, ...ZB, ...V2_OVERLAYS, ...BOARD_OVERLAYS };
 export function drawOverlays(ctx, ep, t, cast, camera) {
   for (const o of ep.overlays || []) { if (t < o.t0 - 0.01 || t > o.t1 + 0.01) continue; ONLY.cur = o.kind; const fn = OVERLAY_HANDLERS[o.kind]; if (fn) fn(ctx, o, t, ep, cast, camera); }
   caption(ctx, ep, t, cast);

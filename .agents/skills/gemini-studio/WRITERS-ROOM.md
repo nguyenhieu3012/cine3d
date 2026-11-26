@@ -96,3 +96,24 @@ Compliance checks alone CANNOT pass a boring script. The `pro` Blind Script Gate
 4. **`dialogue_authenticity_score` (≥ 7):** Zero AI-smell, zero preachy moralizing, razor-sharp spoken Hanoi VN / US pub EN?
 5. **`visual_storytelling_score` (≥ 7):** Picture & props carry ≥ 40% of the joke/emotion (not a podcast with 3D avatars)?
 6. *(GOAT only)* **`loser_steelman_score` (≥ 7):** Does the losing side land ≥ 1 undeniable point that triggers real comment warfare?
+
+---
+
+## 7. Visual Storytelling Craft (YouTube 2026 — Vox / Kurzgesagt / Zack D. / Tifo)
+Apply these proven visual laws when designing `"visual"` fields and choosing `core/overlay_board.js` layouts:
+1. **Four Visual Jobs (Every Key Beat Must Have ONE):**
+   - `SHOW`: Reveal the physical proof, sticker, receipt, or internal cutaway (Zack D. rule: show what is hidden inside the scam, wallet, or pitch).
+   - `COMPARE`: Contrast two claims side-by-side or vertically stacked (`board` `compare` — e.g., Ad vs Reality, Ron vs Leo).
+   - `SEQUENCE`: Unpack a 3–4 step mechanism or money loop one step at a time (`board` `flow`, `chart`, or `corkboard` with red strings).
+   - `LAND`: Pure 3D face/reaction close-up (`cu_<who>` / `ecu_<who>`) with zero clutter so the punchline or emotion hits hard.
+2. **Temporal Contiguity + Non-Redundancy (Mayer-Fiorella Law):**
+   - Pop each diagram node, sticker, or highlighter sweep at the **exact millisecond** the speaker names it (`st.t`, `highlightAt`, `stamp.at`).
+   - Diagram text = **1–3 word crisp labels + bold numbers ONLY** — NEVER duplicate the spoken sentence inside a diagram box.
+3. **Tactile Mixed-Media Polish (Vox / Johnny Harris Look):**
+   - 2D presentation graphics run at **12fps stutter ("on twos", `stutter: 12`)** over smooth **30fps 3D characters** + white paper-cutout sticker rims + subtle paper grain + synced tactile SFX (`paper_slip`, `shutter`, `stamp`, `kaching`).
+4. **Fixed Semantic Color Coding (Kurzgesagt Rule):**
+   - Keep colors consistent across the whole episode: **Red/Crimson** = scam/loss/Ron, **Blue/Cyan** = truth/Leo, **Gold/Yellow** = money/proof/highlight.
+5. **Vertical-First 9:16 Discipline:**
+   - Top half (`y: 216..756`, `x: 54..890`) = 2D Board / Corkboard / Tifo Tactics (`rig: diagramRig()`); bottom half = live 3D cast reacting & glancing `look: 'up'`; captions cleanly at `y: 1385`/`1421`.
+   - Use stylized 2D painted backdrops (`setswapBackdrop` — e.g., `mom_kitchen`, `stadium_night`) for emotional memories or flash-cuts instead of building expensive one-off 3D sets.
+

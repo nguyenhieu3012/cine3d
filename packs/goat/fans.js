@@ -170,10 +170,11 @@ function buildFan(cfg, opts) {
   }
 
   let _lastFaceKey = '';
-  function drawFace(f, talk, t) {
-    const bl = blink(t, seed), open = clamp(f.eye * (1 - bl)), sz = f.size || 1, tk = talk;
+  function drawFace(f, talk, t, xp = null) {
+    const bl = xp ? xp.blink : blink(t, seed), open = clamp(f.eye * (1 - bl)), sz = f.size || 1, tk = talk;
+    const xpKey = xp ? `|x:${xp.mo.toFixed(3)},${xp.mw.toFixed(2)},${xp.bro[0].toFixed(2)},${xp.bro[1].toFixed(2)},${(xp.th || 0).toFixed(2)}` : '';
     const tDyn = (tk > 0.001 || (f.sweat || 0) > 0.05 || (f.tear || 0) > 0.05) ? t.toFixed(4) : '';
-    const fKey = `${open.toFixed(4)}|${sz.toFixed(4)}|${tk.toFixed(4)}|${(f.blush || 0).toFixed(3)}|${(f.arc || 0).toFixed(2)}|${(f.px || 0).toFixed(3)}|${(f.py || 0).toFixed(3)}|${(f.pup ?? 1).toFixed(3)}|${(f.brow || 0).toFixed(3)}|${(f.browL || 0).toFixed(3)}|${(f.browR || 0).toFixed(3)}|${(f.tilt || 0).toFixed(3)}|${(f.open || 0).toFixed(3)}|${(f.wide || 1).toFixed(3)}|${(f.smile || 0).toFixed(3)}|${(f.smirk || 0).toFixed(3)}|${(f.tongue || 0).toFixed(2)}|${(f.teeth || 0).toFixed(2)}|${(f.sweat || 0).toFixed(2)}|${(f.tear || 0).toFixed(2)}|${tDyn}`;
+    const fKey = `${open.toFixed(4)}|${sz.toFixed(4)}|${tk.toFixed(4)}|${(f.blush || 0).toFixed(3)}|${(f.arc || 0).toFixed(2)}|${(f.px || 0).toFixed(3)}|${(f.py || 0).toFixed(3)}|${(f.pup ?? 1).toFixed(3)}|${(f.brow || 0).toFixed(3)}|${(f.browL || 0).toFixed(3)}|${(f.browR || 0).toFixed(3)}|${(f.tilt || 0).toFixed(3)}|${(f.open || 0).toFixed(3)}|${(f.wide || 1).toFixed(3)}|${(f.smile || 0).toFixed(3)}|${(f.smirk || 0).toFixed(3)}|${(f.tongue || 0).toFixed(2)}|${(f.teeth || 0).toFixed(2)}|${(f.sweat || 0).toFixed(2)}|${(f.tear || 0).toFixed(2)}|${tDyn}${xpKey}`;
     if (fKey === _lastFaceKey) return; _lastFaceKey = fKey;
     const c = face.ctx, S = face.size, k = face.px, X = (d) => S / 2 + d * k, Y = (d) => S / 2 - d * k;
     c.clearRect(0, 0, S, S); c.lineCap = 'round'; c.lineJoin = 'round';
@@ -204,22 +205,26 @@ function buildFan(cfg, opts) {
       if (open < 0.9 && open > 0.25) { c.strokeStyle = 'rgba(40,18,10,0.35)'; c.lineWidth = 0.5 * k; c.beginPath(); c.moveTo(ex - hw * 0.9, lidY - 1.9 * k); c.quadraticCurveTo(ex, lidY - 2.7 * k, ex + hw * 0.9, lidY - 1.7 * k); c.stroke(); }
     }
     // brows: tapered, drawn over the forehead above the eyes
-    const talkBrow = tk * 0.22 * Math.sin(t * 6.1 + seed);
+    const talkBrow = xp ? 0 : tk * 0.22 * Math.sin(t * 6.1 + seed);
     for (const s of [-1, 1]) {
-      const raise = (f.brow || 0) + (s > 0 ? f.browR || 0 : f.browL || 0) + talkBrow, bh = cfg.browH + raise * 4.2, tl = f.tilt || 0;
+      const xpBro = xp ? xp.bro[s > 0 ? 1 : 0] : 0;
+      const raise = (f.brow || 0) + (s > 0 ? f.browR || 0 : f.browL || 0) + talkBrow + xpBro, bh = cfg.browH + raise * 4.2, tl = f.tilt || 0;
       const xi = X(s * (EY - 7.8)), xo = X(s * (EY + 8.8)), yi = Y(EP + bh + tl * 3.4), yo = Y(EP + bh - tl * 1.3 - 0.8), xm = (xi + xo) / 2, ym = Y(EP + bh + 1.6 + tl * 0.9), th = cfg.browT * k;
       c.fillStyle = cfg.browC; c.strokeStyle = cfg.browC; c.lineWidth = 0.5 * k; c.beginPath(); c.moveTo(xi, yi - th * 0.5); c.quadraticCurveTo(xm, ym - th * 0.62, xo, yo - th * 0.24); c.lineTo(xo, yo + th * 0.24); c.quadraticCurveTo(xm, ym + th * 0.5, xi, yi + th * 0.5); c.closePath(); c.fill(); c.stroke();
     }
     // mouth
-    const mo = clamp(Math.max(f.open, tk * 0.95)), w = cfg.mouthW * (f.wide || 1) * (1 + tk * 0.12 * Math.sin(t * 23)) * k, sm = f.smile || 0, sk = f.smirk || 0, mx = X(sk * 1.1), my = Y(MP);
+    const mo = xp ? clamp(Math.max(f.open, xp.mo)) : clamp(Math.max(f.open, tk * 0.95));
+    const w = cfg.mouthW * (f.wide || 1) * (xp ? xp.mw : (1 + tk * 0.12 * Math.sin(t * 23))) * k;
+    const sm = f.smile || 0, sk = f.smirk || 0, mx = X(sk * 1.1), my = Y(MP);
     const cl = sm * 2.2 - sk * 0.9, cr = sm * 2.2 + sk * 2.7, Ly = my - cl * k, Ry = my - cr * k, Lx = mx - w, Rx = mx + w, lip = cfg.lip * k;
+    const teethAmt = xp ? Math.max(f.teeth || 0, xp.th || 0) : (f.teeth || 0);
     if (mo > 0.08) {
       const h = (1.2 + mo * 11) * k, bd = 1.25 + Math.min(0, sm) * 0.3, topY = my - ((cl + cr) / 2) * k + sm * 1.5 * k - (sm < 0 ? 2.6 * k * (-sm) : 0);
       c.save(); c.beginPath(); c.moveTo(Lx, Ly); c.quadraticCurveTo(mx, topY * 2 - (Ly + Ry) / 2, Rx, Ry); c.bezierCurveTo(Rx - 0.1 * w, Ry + h * bd, Lx + 0.1 * w, Ly + h * bd, Lx, Ly); c.closePath();
       c.fillStyle = '#3b0f18'; c.fill(); c.clip();
       if (f.tongue > 0.05 && mo > 0.25) { c.fillStyle = '#e0647a'; c.beginPath(); c.ellipse(mx, my + h * 1.0, w * 0.62, h * 0.55 * Math.min(1, f.tongue + 0.3), 0, 0, 7); c.fill(); }
-      if (f.teeth > 0.05) { const th = Math.min(h * 0.5, 2.9 * k) * clamp(f.teeth + 0.15); c.fillStyle = '#fbf8f0'; c.beginPath(); c.roundRect(Lx + w * 0.12, Math.min(Ly, Ry) - 0.8 * k, w * 1.76, th + 0.8 * k, [0, 0, 1.2 * k, 1.2 * k]); c.fill();
-        if (f.teeth > 0.5 && mo < 0.5) { c.beginPath(); c.roundRect(Lx + w * 0.12, my + h * 0.55, w * 1.76, h * 0.45, [1 * k, 1 * k, 0, 0]); c.fill(); c.fillStyle = '#3b0f18'; c.fillRect(Lx, my + h * 0.5, w * 2, 0.35 * k); } }
+      if (teethAmt > 0.05) { const th = Math.min(h * 0.5, 2.9 * k) * clamp(teethAmt + 0.15); c.fillStyle = '#fbf8f0'; c.beginPath(); c.roundRect(Lx + w * 0.12, Math.min(Ly, Ry) - 0.8 * k, w * 1.76, th + 0.8 * k, [0, 0, 1.2 * k, 1.2 * k]); c.fill();
+        if (teethAmt > 0.5 && mo < 0.5) { c.beginPath(); c.roundRect(Lx + w * 0.12, my + h * 0.55, w * 1.76, h * 0.45, [1 * k, 1 * k, 0, 0]); c.fill(); c.fillStyle = '#3b0f18'; c.fillRect(Lx, my + h * 0.5, w * 2, 0.35 * k); } }
       c.restore();
       c.strokeStyle = INK; c.lineWidth = lip; c.beginPath(); c.moveTo(Lx, Ly); c.quadraticCurveTo(mx, topY * 2 - (Ly + Ry) / 2, Rx, Ry); c.bezierCurveTo(Rx - 0.1 * w, Ry + h * bd, Lx + 0.1 * w, Ly + h * bd, Lx, Ly); c.stroke();
     } else {
@@ -265,7 +270,7 @@ function buildFan(cfg, opts) {
       });
       phone.visible = (p.phone || 0) > 0.5; if (phone.visible) { phone.position.copy(H[1]).add(V(-0.02, 0.07, 0.03)); phone.rotation.set(-0.35, 0.25, 0.08); }
       cup.visible = (p.cup || 0) > 0.5; if (cup.visible) { cup.position.copy(H[1]).add(V(-0.03, opts.cup === 'mate' ? -0.005 : 0.045, opts.cup === 'mate' ? 0.07 : 0.04)); cup.rotation.set(-0.45 * (p.cup || 0), 0, 0.1); }
-      drawFace(p.face, p.talk || 0, t);
+      drawFace(p.face, p.talk || 0, t, p.faceX || null);
     },
     headWorld(out = V()) { return head.getWorldPosition(out); },
   };
