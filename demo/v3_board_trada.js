@@ -12,10 +12,10 @@ export default v2Defaults({
   shots: [
     { t0: 0.0, t1: 1.05, cam: 'cu_teo', move: 'push' },
     { t0: 1.05, t1: 2.15, cam: 'two', move: 'push' },
-    { t0: 2.15, t1: 4.3, cam: 'ms_bip', move: 'push', rig: RIG },
-    { t0: 4.3, t1: 6.5, cam: 'two', move: 'push', rig: RIG },
-    { t0: 6.5, t1: 8.6, cam: 'ms_teo', move: 'none', rig: RIG },
-    { t0: 8.6, t1: 9.6, cam: 'cu_bip', move: 'push', rig: RIG },
+    { t0: 2.15, t1: 4.3, cam: 'ms_bip', move: 'push', rig: RIG.ms },
+    { t0: 4.3, t1: 6.5, cam: 'two', move: 'push', rig: RIG.two },
+    { t0: 6.5, t1: 8.6, cam: 'ms_teo', move: 'none', rig: RIG.ms },
+    { t0: 8.6, t1: 9.6, cam: 'cu_bip', move: 'push', rig: RIG.cu },
     { t0: 9.6, t1: 12.0, cam: 'two', move: 'push' },
   ],
   lines: [

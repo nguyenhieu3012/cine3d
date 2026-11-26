@@ -31,7 +31,7 @@ EMO_MAP = {
     },
     'bip': {
         'smug': 'smug', 'fear': 'shock', 'shock': 'shock', 'sad': 'sad',
-        'joy': 'happy', 'anger': 'angry', 'tender': 'moved', 'flat': 'neutral',
+        'joy': 'happy', 'anger': 'angry', 'tender': 'love', 'flat': 'neutral',
         'neutral': 'neutral', 'deadpan': 'neutral', 'think': 'think',
     },
     'ron': {
@@ -312,7 +312,7 @@ def generate_episode_js(beats_path, out_path, layout='standard', kind='standard'
         emo = map_emo(who, b.get('mood'))
         extra = ['look: "up"'] if (use_diagram and (b.get('card') or i >= 2)) else []
         if b.get('mood') in ('shock', 'anger', 'smug'):
-            extra.append('nod: 1')
+            extra.append('nod: "yes"')
         opts_str = ', '.join([f'emo: {json.dumps(emo)}'] + extra)
         act_lines.append(f"  .atStart({json.dumps(b['id'])}, {json.dumps(who)}, {{ {opts_str} }})")
 
@@ -323,7 +323,9 @@ def generate_episode_js(beats_path, out_path, layout='standard', kind='standard'
         if s.get('move'):
             opts.append(f"move: {json.dumps(s['move'])}")
         if s.get('rig') == '__RIG__':
-            opts.append('rig: RIG')
+            cam = s['cam']
+            rk = 'RIG.two' if cam.startswith('two') else ('RIG.cu' if cam.startswith('cu_') or cam.startswith('ecu_') else 'RIG.ms')
+            opts.append(f'rig: {rk}')
         opt_str = f", {{ {', '.join(opts)} }}" if opts else ''
         shot_lines.append(f"  .cut({s['t1']}, {json.dumps(s['cam'])}{opt_str})")
 

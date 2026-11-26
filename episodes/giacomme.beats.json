@@ -1,0 +1,266 @@
+{
+ "id": "giacomme",
+ "pack": "trada",
+ "rules": 2,
+ "mode": "emotional",
+ "hook": "THÙNG ĐỒ QUÊ: 0 ĐỒNG?",
+ "twist": "b6",
+ "payoff": "b12",
+ "pre": 0.12,
+ "tail": 1.85,
+ "seed": 88,
+ "cards": [
+  "Cơm phố: 120k · Đồ quê: 0đ",
+  "SAI GIÁ",
+  "05:12 · CHỢ SỚM",
+  "08:50 · KHO 2 LỬA",
+  "11:35 · NẮNG 38°C",
+  "Cước xe mẹ trả rồi. Đừng ăn ngoài."
+ ],
+ "meta": {
+  "pillar": "2 Từ Điển Tiếng Mẹ & Chuyện Nhà",
+  "comedy_engine": "Reinterpretation (Lật nghĩa hóa đơn 0Đ) + Dual-World Contrast (Compare 2D -> Bếp Mẹ 2D)",
+  "person": "Tèo (25–34t, dân văn phòng xa quê ở Hà Nội) buổi chiều tối than cơm quán 120k đắt và khoe thùng đồ quê Mẹ gửi '0đ' dù thùng còn nguyên băng dính; Bíp soi dữ liệu ảnh Zalo + tem xe + cuống vé để kiểm toán lại hóa đơn thật",
+  "sum": "bill cơm quán 120k (đĩa ăn sạch bóng) vs thùng đồ quê Mẹ gửi '0đ'; Bíp soi bằng chứng thật: ảnh Zalo 05:12 chợ sớm, ảnh nồi cá 08:50 kho 2 lửa rục tới xương, tem gửi xe khách 11:35 nắng 38°C, cuống vé cước 50k đã trả kẹp băng dính 'Cước xe mẹ trả rồi. Đừng ăn ngoài.' -> Bíp chốt 'Đúng không đồng. Mẹ trả từ sáng.'",
+  "recipient": "anh chị em, nhóm gia đình Zalo hoặc bạn đồng hương xa quê 25–34t",
+  "opener": "Buổi chiều tối quán trà đá: cận mặt Tèo giơ ảnh đĩa cơm quán 120k ăn sạch bóng than đắt, tay kia đẩy thùng xốp nguyên băng dính (hé cuống vé xe kẹp dưới mép) sang bên; hook 'THÙNG ĐỒ QUÊ: 0 ĐỒNG?'",
+  "sincere_beat": "p_note im lặng 2,05 s bóc cuống vé 'Cước xe mẹ trả rồi. Đừng ăn ngoài.', Bíp chốt 'Đúng không đồng. Mẹ trả từ sáng.', rồi Tèo gọi báo đã lấy cá và hẹn cuối tuần về",
+  "withheld_opener": "Cuống vé xe khách kẹp dưới mép băng dính thùng xốp nguyên đai từ giây thứ 1 chính là bằng chứng Mẹ đã trả sẵn cước 50k và dặn 'Đừng ăn ngoài.' nối thẳng về bill 120k",
+  "thread": ""
+ },
+ "music": {
+  "tracks": [
+   { "track": "comedy_playful", "from": 0, "to": "b5c.end", "xfade": 0.6 },
+   { "track": "warm_family", "from": "p_kitchen", "to": "end", "xfade": 0.9 }
+  ]
+ },
+ "sfx": [
+  { "name": "pop", "ref": "b1", "off": 0.08, "gain": -11 },
+  { "name": "slide", "ref": "b4", "off": 0.05, "gain": -10 },
+  { "name": "pop", "ref": "b4", "off": 0.35, "gain": -11 },
+  { "name": "stamp", "ref": "p_stamp", "off": 0.14, "gain": -8 },
+  { "name": "whoosh", "ref": "p_kitchen", "off": 0.08, "gain": -11 },
+  { "name": "chime", "ref": "p_kitchen", "off": 0.52, "gain": -11 },
+  { "name": "click", "ref": "b6", "off": 0.06, "gain": -11 },
+  { "name": "pop", "ref": "b8", "off": 0.06, "gain": -12 },
+  { "name": "paper_slip", "ref": "p_dip", "off": 0.08, "gain": -10 },
+  { "name": "paper_slip", "ref": "p_note", "off": 0.12, "gain": -9 },
+  { "name": "chime", "ref": "p_note", "off": 0.85, "gain": -12 },
+  { "name": "click", "ref": "p_call", "off": 0.10, "gain": -10 },
+  { "name": "ring", "ref": "p_call", "off": 0.42, "gain": -11 },
+  { "name": "ting", "ref": "b13", "off": 0.06, "gain": -13 }
+ ],
+ "beats": [
+  {
+   "id": "b1",
+   "who": "teo",
+   "text": "Cơm quán chém đẹp thật!",
+   "say": "[annoyed, scoffing] Cơm quán chém đẹp thật!",
+   "gap": 0.08,
+   "tension": 5,
+   "mood": "anger",
+   "visual": "[SHOW] Buổi chiều tối tan làm ở quán trà đá: cận mặt Tèo giơ điện thoại hiển thị ảnh đĩa cơm quán ăn sạch bóng (bill 120k); tay kia đẩy thùng xốp Mẹ gửi nguyên băng dính (hé góc cuống vé xe kẹp dưới mép — manh mối xem lại) sang bên. Hook 'THÙNG ĐỒ QUÊ: 0 ĐỒNG?' tắt ở 2.15s."
+  },
+  {
+   "id": "b2",
+   "who": "bip",
+   "text": "Đĩa trắng trơn. Chê cái gì.",
+   "say": "[deadpan] Đĩa trắng trơn. Chê cái gì.",
+   "gap": 0.14,
+   "tension": 6,
+   "mood": "flat",
+   "land": "laugh",
+   "impact": "light",
+   "visual": "[LAND] Bíp chọc thẳng ngón tay vào bức ảnh cái đĩa sạch bóng trên màn hình điện thoại Tèo, mắt phẳng lỳ."
+  },
+  {
+   "id": "b3",
+   "who": "teo",
+   "text": "Trăm hai mà bé bằng nắm tay!",
+   "gap": 0.08,
+   "tension": 7,
+   "mood": "anger",
+   "land": "gag",
+   "visual": "[SHOW] Tèo giơ nắm tay bé xíu minh họa suất cơm quán đồng nghiệp rủ đi ăn chiều nay, mặt nhăn nhó."
+  },
+  {
+   "id": "b4",
+   "who": "teo",
+   "text": "May mẹ gửi đồ quê. Chả mất đồng nào!",
+   "say": "[smug, cheerful] May mẹ gửi đồ quê. Chả mất đồng nào!",
+   "gap": 0.16,
+   "tension": 5,
+   "mood": "smug",
+   "land": "gag",
+   "card": "Cơm phố: 120k · Đồ quê: 0đ",
+   "visual": "[COMPARE] ĐỒNG BỘ ngay trên lời thoại (0 im chết!): nửa trên bật boardOverlay layout 'compare' (stack: true, stutter 12fps): trên là 'CƠM PHỐ 120K' (sticker money_bag), dưới là 'ĐỒ QUÊ 0Đ' (sticker mom_meal). Tèo vỗ tự hào vào thùng xốp nguyên băng dính."
+  },
+  {
+   "id": "b4b",
+   "who": "bip",
+   "text": "Thùng còn nguyên. Vẫn ăn ngoài.",
+   "say": "[dryly] Thùng còn nguyên. Vẫn ăn ngoài.",
+   "gap": 0.14,
+   "tension": 6,
+   "mood": "flat",
+   "land": "laugh",
+   "visual": "[LAND] Bíp gõ nhẹ lên lớp băng dính còn nguyên xi trên thùng đồ quê đặt cạnh tờ bill 120k, khịa thẳng mặt Tèo."
+  },
+  {
+   "id": "b4c",
+   "who": "teo",
+   "text": "Ơ… cá kho để mai hâm mới đượm!",
+   "gap": 0.08,
+   "tension": 7,
+   "mood": "smug",
+   "visual": "[LAND] Tèo chột dạ chống chế kiểu rất đời, vội chỉ tay lên chữ '0Đ' xanh rực trên bảng so sánh."
+  },
+  {
+   "id": "p_stamp",
+   "pause": 0.88,
+   "tension": 6,
+   "land": "gag",
+   "card": "SAI GIÁ",
+   "visual": "[COMPARE] Trên bảng so sánh, dấu đỏ 'SAI GIÁ' đóng rầm đè lên con số 0Đ (stutter 12fps + SFX stamp). Nụ cười của Tèo cứng lại."
+  },
+  {
+   "id": "b5",
+   "who": "bip",
+   "text": "Mày tính thiếu dòng rồi.",
+   "gap": 0.20,
+   "tension": 5,
+   "mood": "flat",
+   "land": "reveal",
+   "visual": "[LAND] Bíp nghiêng đầu nhìn thẳng Tèo, thái độ bình tĩnh hẳn."
+  },
+  {
+   "id": "b5b",
+   "who": "teo",
+   "text": "Thiếu gì? Đồ nhà làm hết mà.",
+   "gap": 0.10,
+   "tension": 6,
+   "mood": "smug",
+   "visual": "[LAND] Tèo nhún vai cãi lại, tưởng Bíp đang bắt bẻ chuyện tiền ship."
+  },
+  {
+   "id": "b5c",
+   "who": "bip",
+   "text": "Đưa máy. Tao soi hóa đơn.",
+   "say": "[quietly, steady] Đưa máy. Tao soi hóa đơn.",
+   "gap": 0.36,
+   "tension": 4,
+   "mood": "flat",
+   "visual": "[SHOW] Bíp khẽ đón chiếc điện thoại Tèo đang cầm (mở khung chat Zalo của Mẹ) và chỉ sang tem gửi xe trên thùng xốp (vẫn nguyên băng dính); nhạc vui tắt dần."
+  },
+  {
+   "id": "p_kitchen",
+   "pause": 1.15,
+   "tension": 5,
+   "land": "reveal",
+   "visual": "[SHOW] setswapBackdrop chuyển mượt nền quán trà đá sang 'mom_kitchen' (bếp quê ấm ánh đèn vàng vẽ 2D + Ken Burns chậm phía sau Tèo & Bíp 3D). Nhạc warm_family cất lên."
+  },
+  {
+   "id": "b6",
+   "who": "bip",
+   "text": "Ảnh chợ. Năm giờ sáng.",
+   "say": "[softly, steady] Ảnh chợ. Năm giờ sáng.",
+   "gap": 0.26,
+   "tension": 6,
+   "mood": "tender",
+   "land": "turn",
+   "card": "05:12 · CHỢ SỚM",
+   "visual": "[SEQUENCE] Bíp phóng to mốc giờ chụp '05:12' trên ảnh Zalo đầu tiên Mẹ gửi (nhãn hóa đơn '05:12 · CHỢ SỚM'). Tèo khẽ ngước lên, hết vẻ cười đùa."
+  },
+  {
+   "id": "b7",
+   "who": "teo",
+   "text": "Ơ… mẹ bảo tiện đi chợ mà.",
+   "gap": 0.24,
+   "tension": 5,
+   "mood": "fear",
+   "visual": "[LAND] Cận mặt Tèo khựng lại, cụp mắt xuống khi thấy dấu giờ 05:12 trên màn hình."
+  },
+  {
+   "id": "b8",
+   "who": "bip",
+   "text": "Gần chín giờ. Vẫn canh bếp.",
+   "gap": 0.34,
+   "tension": 7,
+   "mood": "tender",
+   "card": "08:50 · KHO 2 LỬA",
+   "visual": "[SEQUENCE] Bíp quẹt sang ảnh Zalo thứ 2 Mẹ chụp nồi cá kho tộ gửi lúc 08:50 (thùng xốp vẫn nguyên băng dính): nổi sticker 'mom_meal' bốc khói ấm + nhãn '08:50 · KHO 2 LỬA'."
+  },
+  {
+   "id": "b9",
+   "who": "bip",
+   "text": "Tem xe khách. Giữa nắng trưa.",
+   "gap": 0.36,
+   "tension": 8,
+   "mood": "sad",
+   "land": "reveal",
+   "card": "11:35 · NẮNG 38°C",
+   "visual": "[SHOW] Bíp xoay mặt tem gửi xe trên thùng xốp 'mom_box' (nguyên băng dính) cho Tèo thấy giờ đóng dấu '11:35' ở quê + nhãn '11:35 · NẮNG 38°C'."
+  },
+  {
+   "id": "p_dip",
+   "pause": 0.65,
+   "tension": 5,
+   "visual": "[SHOW] Lúc này Bíp mới nhẹ tay bóc cuống vé xe khách (kẹp dưới mép băng dính từ giây thứ 1, mặt trước đóng dấu 'CƯỚC 50K · ĐÃ TRẢ') trượt qua mặt bàn về phía Tèo (SFX paper_slip)."
+  },
+  {
+   "id": "p_note",
+   "pause": 2.05,
+   "tension": 10,
+   "land": "reveal",
+   "card": "Cước xe mẹ trả rồi. Đừng ăn ngoài.",
+   "visual": "[SHOW] Khoảng lặng đỉnh cảm xúc 2,05 s trên nền bếp quê: bật Vox highlighter mặt sau cuống vé viết tay của Mẹ 'Cước xe mẹ trả rồi. Đừng ăn ngoài.' — nét dạ quang quét chậm đúng cụm 'Đừng ăn ngoài.' (mũi dao ăn thẳng về bill 120k)."
+  },
+  {
+   "id": "b10",
+   "who": "bip",
+   "text": "Đúng không đồng.",
+   "say": "[very softly] Đúng không đồng.",
+   "gap": 0.38,
+   "tension": 8,
+   "mood": "tender",
+   "visual": "[LAND] Bíp nhìn cuống vé rồi nhìn Tèo, giọng nhỏ hẳn; cuống vé vẫn giữ mờ trên góc trên nối liền mạch."
+  },
+  {
+   "id": "b11",
+   "who": "bip",
+   "text": "Mẹ trả từ sáng.",
+   "gap": 0.48,
+   "tension": 7,
+   "mood": "tender",
+   "land": "reveal",
+   "visual": "[LAND] Cận mặt Tèo mắt rơm rớm nhìn cuống vé 50k đã trả, tay khẽ đặt lên nắp thùng xốp."
+  },
+  {
+   "id": "p_call",
+   "pause": 1.10,
+   "tension": 5,
+   "visual": "[SHOW] Tèo gạt tờ bill cơm phố 120k sang một bên, cầm điện thoại bấm gọi; hiện callCard mode 'outgoing' gọi 'Mẹ ❤️' (chỉ nút đỏ đúng chuẩn v2, SFX click + ring)."
+  },
+  {
+   "id": "b12",
+   "who": "teo",
+   "text": "Alo mẹ ạ… con lấy cá rồi. Cuối tuần con về ạ.",
+   "say": "[warm, gentle] Alo mẹ ạ… con lấy cá rồi. Cuối tuần con về ạ.",
+   "gap": 0.24,
+   "tension": 7,
+   "mood": "tender",
+   "land": "reveal",
+   "visual": "[LAND] Tèo áp điện thoại lên tai, mỉm cười rất nhẹ mà mắt còn ươn ướt."
+  },
+  {
+   "id": "b13",
+   "who": "bip",
+   "text": "Rò nước.",
+   "say": "[whispering] Rò nước.",
+   "gap": 0.50,
+   "tension": 4,
+   "mood": "tender",
+   "visual": "[LAND] Bíp khẽ liếc Tèo, nháy nhẹ mắt, hai anh em ngồi lặng dưới ánh bếp ấm trong 1,85 s dư vị."
+  }
+ ]
+}

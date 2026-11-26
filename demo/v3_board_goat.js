@@ -11,9 +11,9 @@ export default goatDefaults({
     { t0: 0.0, t1: 1.0, cam: 'cu_ron', move: 'push' },
     { t0: 1.0, t1: 2.0, cam: 'ms_leo', move: 'none' },
     { t0: 2.0, t1: 3.2, cam: 'two', move: 'push' },
-    { t0: 3.2, t1: 5.4, cam: 'ms_leo', move: 'push', rig: RIG },
-    { t0: 5.4, t1: 7.2, cam: 'two', move: 'push', rig: RIG },
-    { t0: 7.2, t1: 9.8, cam: 'ms_ron', move: 'push', rig: RIG },
+    { t0: 3.2, t1: 5.4, cam: 'ms_leo', move: 'push', rig: RIG.ms },
+    { t0: 5.4, t1: 7.2, cam: 'two', move: 'push', rig: RIG.two },
+    { t0: 7.2, t1: 9.8, cam: 'ms_ron', move: 'push', rig: RIG.ms },
     { t0: 9.8, t1: 12.0, cam: 'two', move: 'push' },
   ],
   lines: [

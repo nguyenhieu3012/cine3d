@@ -18,6 +18,11 @@
       "w": 512,
       "h": 484
     },
+    "mom_meal": {
+      "path": "packs/shared/stickers/mom_meal.png",
+      "w": 512,
+      "h": 444
+    },
     "money_bag": {
       "path": "packs/shared/stickers/money_bag.png",
       "w": 431,

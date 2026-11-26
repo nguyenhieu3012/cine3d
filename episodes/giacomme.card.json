@@ -1,0 +1,15 @@
+{
+ "id": "giacomme",
+ "pillar": "2 Từ Điển Tiếng Mẹ & Chuyện Nhà",
+ "title": "Thùng đồ quê: 0 đồng?",
+ "person": "Tèo (25–34t, đi làm xa ở Hà Nội) sau giờ làm than bữa cơm quán 120k đắt và khoe thùng cá kho Mẹ gửi từ quê 'chả mất đồng nào' dù thùng còn nguyên băng dính; Bíp soi dữ liệu thật (ảnh Zalo 05:12, ảnh nồi cá 08:50, tem xe 11:35 · 38°C, cuống vé cước 50k đã trả) để kiểm toán lại hóa đơn 0 đồng",
+ "sum": "bill cơm quán 120k (đĩa ăn sạch bóng) vs thùng đồ quê Mẹ gửi '0đ'; Bíp soi bằng chứng thật: ảnh Zalo 05:12 chợ sớm, ảnh nồi cá 08:50 kho 2 lửa rục tới xương, tem xe khách 11:35 nắng 38°C, cuống vé kẹp băng dính 'Cước 50k đã trả · Đừng ăn ngoài.' -> Bíp chốt 'Đúng không đồng. Mẹ trả từ sáng.'",
+ "recipient": "anh chị em hoặc nhóm bạn đồng nghiệp xa quê 25–34t kèm câu 'mẹ tao gửi thùng đồ lên cũng toàn trả sẵn cước xe y chang'",
+ "first_frame": "Buổi chiều tối quán trà đá: cận mặt Tèo giơ điện thoại khoe ảnh đĩa cơm quán ăn sạch bóng kèm hóa đơn 120k, tay kia đẩy thùng xốp nguyên băng dính (hé cuống vé xe kẹp dưới mép) sang bên; chữ mở đầu 'THÙNG ĐỒ QUÊ: 0 ĐỒNG?'",
+ "kind": "standalone",
+ "mode": "emotional",
+ "comedy_engine": "Reinterpretation (Lật nghĩa hóa đơn 0Đ) + Dual-World Contrast (Compare 2D -> Bếp Mẹ 2D)",
+ "v3_layout": "compare + setswapBackdrop(mom_kitchen) + highlighter",
+ "script_doc": "episodes/giacomme.treatment.md",
+ "thread": ""
+}
