@@ -1,0 +1,251 @@
+{
+ "id": "thaylamgiau",
+ "pack": "trada",
+ "rules": 2,
+ "mode": "comedy",
+ "hook": "THẦY GIÀU THẬT KHÔNG?",
+ "twist": "b10",
+ "payoff": "b12",
+ "pre": 0.12,
+ "tail": 0.6,
+ "seed": 83,
+ "cards": [
+  "Khóa Tư Duy: 9.900.000đ",
+  "B1: 1 biển số · 4 thầy chụp",
+  "B1+: Villa sống ảo 350k/giờ",
+  "B2: Trang 1 — Dậy 5 giờ",
+  "B3: 9,9tr × 200 = 1,98 tỷ",
+  "B4: Vòng lặp F2 — 499k"
+ ],
+ "meta": {
+  "pillar": "4 Wildcard / Châm Biếm Xã Hội",
+  "comedy_engine": "Deadpan Literalism + Self-Own Trap + Vòng Lặp Châm Biếm (Diagram 4 bước)",
+  "person": "Tèo (24–34t) mặc áo vest đi mượn ngồi quán trà đá mơ làm triệu phú; Bíp dựng sơ đồ dòng tiền 4 bước bóc trần mô hình Thầy Làm Giàu",
+  "sum": "khóa học 9.900.000đ, vốn diễn ~4,35tr (Porsche thuê 4 thầy chung 1 biển + villa 350k/giờ), sách rỗng 0đ, doanh thu 200 học viên = 1,98 tỷ, vòng lặp F2 khóa chống lùa gà 499k",
+  "recipient": "nhóm bạn văn phòng 24–34 tuổi hoặc đứa bạn tối nào cũng xem clip 'thầy dạy tư duy triệu phú' trên mạng",
+  "opener": "Cận mặt Tèo mặc vest đi mượn khoe ảnh thầy đứng cạnh Porsche; hook 'THẦY GIÀU THẬT KHÔNG?'; góc kính lái có tem nhỏ 'XE TỰ LÁI'",
+  "sincere_beat": "không có (châm biếm xã hội sắc, cú lật kép bằng sơ đồ dòng tiền, không giảng đạo)",
+  "withheld_opener": "Góc kính lái con Porsche trong ảnh Tèo khoe ở giây thứ 1 đã có tem 'XE TỰ LÁI' và mặt Tèo đã nằm sẵn ở ô góc dưới lớp Zoom 200 người",
+  "thread": ""
+ },
+ "sfx": [
+  { "name": "pop", "ref": "b1", "off": 0.08, "gain": -10 },
+  { "name": "slide", "ref": "b2", "off": 0.05, "gain": -10 },
+  { "name": "shutter", "ref": "p_plate", "off": 0.08, "gain": -8 },
+  { "name": "click", "ref": "p_plate", "off": 0.35, "gain": -10 },
+  { "name": "ting", "ref": "p_villa", "off": 0.1, "gain": -9 },
+  { "name": "thud", "ref": "b7", "off": 0.05, "gain": -8 },
+  { "name": "paper_slip", "ref": "p_pdf", "off": 0.08, "gain": -9 },
+  { "name": "stamp", "ref": "b8", "off": 0.15, "gain": -8 },
+  { "name": "thud", "ref": "b9", "off": 0.04, "gain": -7 },
+  { "name": "tick", "ref": "p_dip", "off": 0.05, "dur": 0.55, "gain": -14 },
+  { "name": "kaching", "ref": "p_dip", "off": 0.55, "gain": -8 },
+  { "name": "boom", "ref": "p_freeze", "off": 0.05, "gain": -9 },
+  { "name": "ding_idea", "ref": "b12", "off": 0.02, "gain": -8 },
+  { "name": "msg_in", "ref": "p_note", "off": 0.1, "gain": -9 },
+  { "name": "pop", "ref": "b13", "off": 0.08, "gain": -10 }
+ ],
+ "beats": [
+  {
+   "id": "b1",
+   "who": "teo",
+   "text": "Tao sắp thành triệu phú!",
+   "say": "[boastful] Tao sắp thành triệu phú!",
+   "gap": 0.08,
+   "tension": 5,
+   "mood": "smug",
+   "card": "Khóa Tư Duy: 9.900.000đ",
+   "visual": "Cận mặt Tèo mặc áo vest rộng đi mượn, giơ điện thoại khoe ảnh 'Thầy Mentor' cạnh siêu xe; góc kính lái có tem nhỏ 'XE TỰ LÁI' (manh mối xem lại)."
+  },
+  {
+   "id": "b2",
+   "who": "bip",
+   "text": "Nợ trà đá xong chưa?",
+   "say": "[deadpan] Nợ trà đá xong chưa?",
+   "gap": 0.24,
+   "tension": 6,
+   "mood": "flat",
+   "land": "laugh",
+   "impact": "light",
+   "visual": "Bíp đẩy nhẹ cốc trà đá và quyển sổ nợ 24 cốc về sát khuỷu tay áo vest của Tèo."
+  },
+  {
+   "id": "b3",
+   "who": "teo",
+   "text": "Tầm nhìn nhỏ! Xe thầy đấy!",
+   "say": "[scoffs, smug] Tầm nhìn nhỏ! Xe thầy đấy!",
+   "gap": 0.1,
+   "tension": 5,
+   "mood": "smug",
+   "visual": "Tèo hất cằm vuốt cổ áo vest ra oai, dí sát ảnh 'Thầy' khoanh tay cạnh chiếc Porsche bóng loáng."
+  },
+  {
+   "id": "p_plate",
+   "pause": 0.78,
+   "tension": 6,
+   "mood": "shock",
+   "land": "gag",
+   "card": "B1: 1 biển số · 4 thầy chụp",
+   "visual": "[Sơ đồ Bước 1 — Mồi thuê] Nửa trên bật Node 1: phóng to biển số xe chia 4 ô ảnh 4 'Thầy Triệu Phú' khác nhau đứng cùng 1 chiếc Porsche thuê 4tr/ngày."
+  },
+  {
+   "id": "b4",
+   "who": "bip",
+   "text": "Bốn thầy chung con xe.",
+   "say": "[flat] Bốn thầy chung con xe.",
+   "gap": 0.22,
+   "tension": 5,
+   "mood": "flat",
+   "land": "laugh",
+   "visual": "Bíp quẹt ngón tay qua 4 khung ảnh giống hệt nhau trên Node 1; nụ cười của Tèo cứng đờ."
+  },
+  {
+   "id": "b5",
+   "who": "teo",
+   "text": "Thì… thầy có biệt thự!",
+   "say": "[defensive] Thì… thầy có biệt thự!",
+   "gap": 0.12,
+   "tension": 6,
+   "mood": "fear",
+   "visual": "Tèo cuống quýt quẹt sang clip 'Thầy' cầm ly rượu đứng ban công biệt thự nói chuyện thành công."
+  },
+  {
+   "id": "p_villa",
+   "pause": 0.78,
+   "tension": 7,
+   "mood": "shock",
+   "land": "gag",
+   "card": "B1+: Villa sống ảo 350k/giờ",
+   "visual": "[Sơ đồ Bước 1+] Node 1 gắn thêm hóa đơn app: 'Villa chụp ảnh 350k/giờ — Tổng vốn diễn ~4,35tr'."
+  },
+  {
+   "id": "b6",
+   "who": "bip",
+   "text": "Thuê theo giờ. Ba trăm rưỡi.",
+   "say": "[matter-of-fact] Thuê theo giờ. Ba trăm rưỡi.",
+   "gap": 0.26,
+   "tension": 6,
+   "mood": "flat",
+   "land": "laugh",
+   "visual": "Bíp chỉ vào dòng phụ thu mở nắp capo 50k trên Node 1; mồ hôi lăn dài trên thái dương Tèo."
+  },
+  {
+   "id": "b7",
+   "who": "teo",
+   "text": "Ít ra bí kíp thầy xịn!",
+   "say": "[panicked, defensive] Ít ra bí kíp thầy xịn!",
+   "gap": 0.1,
+   "tension": 7,
+   "mood": "fear",
+   "visual": "Tèo đặt đánh cộp quyển tài liệu 'Bí Mật Người Giàu' đóng gáy lò xo lên mặt bàn nhựa."
+  },
+  {
+   "id": "p_pdf",
+   "pause": 0.75,
+   "tension": 5,
+   "mood": "flat",
+   "land": "gag",
+   "card": "B2: Trang 1 — Dậy 5 giờ",
+   "visual": "[Sơ đồ Bước 2 — Giáo trình 0đ] Mũi tên 'Bán vỏ bọc' nối từ Node 1 sang Node 2: trang sách cỡ chữ khổng lồ chỉ ghi 'Dậy 5h sáng, uống nước ấm'."
+  },
+  {
+   "id": "b8",
+   "who": "bip",
+   "text": "Mẹ mày dặn miễn phí.",
+   "say": "[deadpan] Mẹ mày dặn miễn phí.",
+   "gap": 0.4,
+   "tension": 4,
+   "mood": "flat",
+   "land": "laugh",
+   "visual": "Con dấu đỏ 'CHI PHÍ KIẾN THỨC: 0Đ' đóng đánh cộp lên Node 2; Bíp gấp sách đẩy trượt về phía Tèo."
+  },
+  {
+   "id": "b9",
+   "who": "teo",
+   "text": "Thế hai tỷ thầy khoe đâu?!",
+   "say": "[outraged] Thế hai tỷ thầy khoe đâu?!",
+   "gap": 0.08,
+   "tension": 7,
+   "mood": "anger",
+   "visual": "Tèo đập bàn đứng nhổm dậy, chỉ thẳng vào ảnh chụp số dư 2 tỷ trong quảng cáo của 'Thầy'."
+  },
+  {
+   "id": "p_dip",
+   "pause": 0.85,
+   "tension": 5,
+   "dip": true,
+   "card": "B3: 9,9tr × 200 = 1,98 tỷ",
+   "visual": "[Sơ đồ Bước 3 — Dòng tiền thật] (Dip nhạc) Mũi tên vàng nối Node 2 sang Node 3: '9,9tr × 200 học viên = 1,98 tỷ' + lưới Zoom 200 ô khoanh đỏ đúng mặt Tèo."
+  },
+  {
+   "id": "b10",
+   "who": "bip",
+   "text": "Hai trăm đứa như mày.",
+   "say": "[quietly, deadpan] Hai trăm đứa như mày.",
+   "gap": 0.06,
+   "tension": 9,
+   "mood": "flat",
+   "visual": "(Cú lật) Node 3 phóng to đúng ô mặt Tèo cười tít mắt trong lưới 200 học viên Zoom; cả bàn trà đá đứng hình."
+  },
+  {
+   "id": "p_freeze",
+   "pause": 0.9,
+   "tension": 10,
+   "mood": "shock",
+   "land": "reveal",
+   "impact": "heavy",
+   "visual": "(Đỉnh cao trào) Mắt Tèo trừng to nhìn mặt mình trong Node 3, rồi cơn giận tắt ngấm — chuyển sang ánh mắt lóe sáng cực gian."
+  },
+  {
+   "id": "b11",
+   "who": "teo",
+   "text": "Cay thật! Bọn lùa gà!",
+   "say": "[outraged] Cay thật! Bọn lùa gà!",
+   "gap": 0.14,
+   "tension": 6,
+   "mood": "anger",
+   "visual": "Tèo đập tay xuống đùi giả vờ phẫn nộ như sắp tỉnh ngộ hoàn toàn."
+  },
+  {
+   "id": "b12",
+   "who": "teo",
+   "text": "Tao mở khóa… chống lùa gà!",
+   "say": "[triumphant] Tao mở khóa… chống lùa gà!",
+   "gap": 0.36,
+   "tension": 9,
+   "mood": "smug",
+   "land": "laugh",
+   "visual": "(Payoff châm biếm) Tèo lập tức giật cổ áo vest chỉnh lại cho thẳng, mắt sáng rực hớn hở vớ điện thoại."
+  },
+  {
+   "id": "p_note",
+   "pause": 0.58,
+   "tension": 7,
+   "mood": "smug",
+   "land": "gag",
+   "card": "B4: Vòng lặp F2 — 499k",
+   "visual": "[Sơ đồ Bước 4 — Đóng vòng lặp] Node 4 bật sáng 'Khóa Chống Lùa Gà 499k', bắn mũi tên đỏ cong ngược từ mặt Tèo đâm thẳng về Node 1 (Porsche thuê)."
+  },
+  {
+   "id": "b13",
+   "who": "bip",
+   "text": "Thuê xe mấy tiếng?",
+   "say": "[flat] Thuê xe mấy tiếng?",
+   "gap": 0.16,
+   "tension": 6,
+   "mood": "flat",
+   "land": "laugh",
+   "visual": "Bíp mở sẵn app thuê siêu xe tự lái đặt trước mặt Tèo; trên Sơ đồ mũi tên vòng lặp F2 -> B1 nhấp nháy đỏ."
+  },
+  {
+   "id": "b14",
+   "who": "teo",
+   "text": "Nửa tiếng chụp ảnh thôi!",
+   "say": "[defensive] Nửa tiếng chụp ảnh thôi!",
+   "gap": 0.14,
+   "tension": 7,
+   "mood": "smug",
+   "visual": "Tèo hăm hở với tay bấm đặt cọc, cổ vẫn lủng lẳng tấm thẻ VIP Mentor đi mượn — toàn bộ Sơ đồ 4 bước khép vòng rồi cắt sắc (tail 0.6s)."
+  }
+ ]
+}
